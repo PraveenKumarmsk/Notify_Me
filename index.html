@@ -12,8 +12,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Notify">
 
-<!-- OneSignal v16 SDK (ye hi ek external script hai jo allowed hai) -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<!-- NOTE: OneSignal SDK neeche script me dynamically load hota hai
+     (pehle backend se App ID milta hai, phir SDK start hota hai) -->
 
 <style>
   /* ===== Colors aur basic variables ===== */
@@ -25,8 +25,6 @@
     --text:#1f2937;
     --muted:#6b7280;
     --ok:#16a34a;
-    --err:#dc2626;
-    --warn:#d97706;
     --shadow:0 8px 24px rgba(79,70,229,.12);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -39,7 +37,6 @@
     display:flex;justify-content:center;
     padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
   }
-  /* #app poora page cover karta hai taaki background tap pakda ja sake */
   #app{width:100%;max-width:440px;min-height:100vh;padding:28px 0 40px;display:flex;flex-direction:column;gap:18px}
 
   header{text-align:center}
@@ -52,12 +49,10 @@
   h1{margin:0;font-size:24px}
   .sub{margin:6px 0 0;color:var(--muted);font-size:14px}
 
-  /* ===== Cards ===== */
   .card{background:var(--card);border-radius:20px;padding:22px;box-shadow:var(--shadow)}
   .card h2{margin:0 0 6px;font-size:18px}
   .card p{margin:0 0 16px;color:var(--muted);font-size:14px;line-height:1.5}
 
-  /* ===== Buttons ===== */
   button{font:inherit;cursor:pointer;border:0}
   .btn{
     width:100%;padding:18px;border-radius:16px;
@@ -70,18 +65,16 @@
   .btn.done{background:var(--ok);box-shadow:none}
   .btn.small{padding:14px;font-size:16px;margin-top:6px}
 
-  /* ===== Inputs ===== */
   label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px}
-  input[type=text],input[type=datetime-local],textarea{
+  input[type=text],input[type=url],input[type=datetime-local],textarea{
     width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid #e5e7eb;
     font:inherit;font-size:16px;background:#fafafa;color:var(--text);outline:none;
   }
   input:focus,textarea:focus{border-color:var(--primary);background:#fff}
   textarea{resize:vertical;min-height:90px}
-  .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.4}
 
-  /* ===== Status messages ===== */
-  .status{margin-top:14px;padding:12px 14px;border-radius:12px;font-size:14px;line-height:1.4;display:none}
+  .status{margin-top:14px;padding:12px 14px;border-radius:12px;font-size:14px;line-height:1.4;display:none;word-break:break-word}
   .status.show{display:block}
   .status.ok{background:#dcfce7;color:#166534}
   .status.err{background:#fee2e2;color:#991b1b}
@@ -90,7 +83,7 @@
 
   .hidden{display:none !important}
   .admin-badge{display:inline-block;font-size:11px;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
-  .link-btn{background:none;color:var(--muted);font-size:12px;text-decoration:underline;margin-top:12px;padding:0}
+  .link-btn{background:none;color:var(--muted);font-size:12px;text-decoration:underline;margin:12px 14px 0 0;padding:0}
   footer{text-align:center;color:var(--muted);font-size:12px;margin-top:auto}
 </style>
 </head>
@@ -103,6 +96,16 @@
     <p class="sub">Important updates seedha aapke phone par</p>
   </header>
 
+  <!-- ===== SETUP CARD: sirf tab dikhta hai jab backend URL na ho ===== -->
+  <section class="card hidden" id="setupCard">
+    <h2>Pehli baar setup</h2>
+    <p>Apps Script ka Web App URL (<b>/exec</b> wala) yahan paste kijiye. Ek baar save hone par is phone/browser me yaad rahega.</p>
+    <label for="urlInput">Web App URL</label>
+    <input type="url" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    <button class="btn small" id="saveUrlBtn">Save & Open</button>
+    <div class="status" id="setupStatus"></div>
+  </section>
+
   <!-- ===== USER CARD: Enable Notifications ===== -->
   <section class="card" id="userCard">
     <h2>Notifications</h2>
@@ -114,7 +117,7 @@
   <!-- ===== ADMIN CARD: hidden by default ===== -->
   <section class="card hidden" id="adminCard">
     <h2>Admin Panel <span class="admin-badge">ADMIN</span></h2>
-    <p>Message likhiye. Time khali chhodenge to turant send hoga.</p>
+    <p>Message likhiye. Time khali chhodenge to turant send hoga. Ye sab Google Sheet ke <b>Schedule</b> tab me bhi dikhta hai.</p>
 
     <label for="msgInput">Message</label>
     <textarea id="msgInput" placeholder="Yahan notification ka message likhiye…" maxlength="300"></textarea>
@@ -125,6 +128,7 @@
 
     <button class="btn small" id="sendBtn">Send Notification</button>
     <div class="status" id="adminStatus"></div>
+    <button class="link-btn" id="changeUrlBtn">Backend URL badlo</button>
     <button class="link-btn" id="logoutBtn">Admin se logout</button>
   </section>
 
@@ -133,32 +137,53 @@
 
 <script>
 /* =====================================================
-   CONFIG — yahan apni values daaliye (placeholders replace karein)
+   CONFIG — sirf ye 2 cheezen (dono pehle se bhari hui hain)
+   BACKEND_URL: Apps Script Web App ka /exec URL
+                (galat/naya ho to app ke Setup card ya Admin → "Backend URL badlo" se bhi badal sakte hain,
+                 ya link me ?api=<URL> laga kar kholiye)
+   ADMIN_PASSWORD: ab sirf Apps Script (Code.gs) me check hota hai. Yahan sirf yaad dilane ke liye hai.
+   OneSignal App ID yahan nahi chahiye — wo backend se apne aap aata hai.
    ===================================================== */
-const ONESIGNAL_APP_ID = "YOUR_ONESIGNAL_APP_ID";   // OneSignal dashboard se App ID
-const BACKEND_URL      = "https://script.google.com/macros/s/AKfycbxgzNhqhgx6jsTKfOIN2GM1vT1RnUZ-F6PFN4quOIs3xCVzwzobRehLZ_WMdXaj-vRo/exec";     // Apps Script Web App ka /exec URL
-const ADMIN_PASSWORD   = "admin123";                // Admin password (baad me badal lein)
+const BACKEND_URL_DEFAULT = "https://script.google.com/macros/s/AKfycbxgzNhqhgx6jsTKfOIN2GM1vT1RnUZ-F6PFN4quOIs3xCVzwzobRehLZ_WMdXaj-vRo/exec";
+const ADMIN_PASSWORD      = "admin123";   // (sirf reference — asli check Code.gs ke ADMIN_PASSWORD se hota hai)
 
 /* =====================================================
-   Chhote helper functions
+   Helpers
    ===================================================== */
 const $ = (id) => document.getElementById(id);
 
-// Status message dikhane ke liye (type: ok | err | info | warn)
 function showStatus(el, type, text){
   el.className = 'status show ' + type;
   el.textContent = text;
 }
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 
-// Placeholder abhi tak replace hua ya nahi, ye check karta hai
-function isConfigured(){
-  return ONESIGNAL_APP_ID && !ONESIGNAL_APP_ID.startsWith('YOUR_') &&
-         BACKEND_URL && !BACKEND_URL.startsWith('YOUR_');
+function validBackend(u){
+  return typeof u === 'string' && /^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec$/.test(u.trim());
 }
 
-/* Apps Script ko POST bhejne ka function.
-   NOTE: Content-Type 'text/plain' isliye rakha hai taaki browser "preflight"
-   (OPTIONS request) na bheje — Apps Script OPTIONS support nahi karta. */
+/* Backend URL kahan se aayega (priority):
+   1) link me ?api=...   2) is browser me saved   3) upar ka default */
+function resolveBackend(){
+  try{
+    const p = new URLSearchParams(location.search);
+    const api = p.get('api');
+    if(api && validBackend(api)){
+      lsSet('backendUrl', api.trim());
+      history.replaceState(null, '', location.pathname);   // URL saaf kar do
+    }
+  }catch(e){}
+  const saved = lsGet('backendUrl');
+  if(validBackend(saved)) return saved.trim();
+  if(validBackend(BACKEND_URL_DEFAULT)) return BACKEND_URL_DEFAULT;
+  return '';
+}
+let BACKEND_URL = resolveBackend();
+
+/* Apps Script ko POST. Content-Type 'text/plain' isliye ki browser "preflight"
+   (OPTIONS) na bheje — Apps Script OPTIONS support nahi karta. */
 async function postToBackend(payload){
   const res = await fetch(BACKEND_URL, {
     method: 'POST',
@@ -168,44 +193,87 @@ async function postToBackend(payload){
   if(!res.ok) throw new Error('Server error: ' + res.status);
   return await res.json();
 }
+async function getFromBackend(query){
+  const res = await fetch(BACKEND_URL + '?' + query);
+  if(!res.ok) throw new Error('Server error: ' + res.status);
+  return await res.json();
+}
 
 /* =====================================================
-   PART 1 — USER SIDE: OneSignal + Enable Notifications
-   NOTE: Service worker (OneSignalSDKWorker.js) ko OneSignal SDK khud
-   register karta hai init() ke time par, isliye alag se register nahi kiya.
+   SETUP CARD (backend URL paste karna)
    ===================================================== */
-let OS = null;                 // OneSignal object yahan store hoga
+const setupCard = $('setupCard');
+$('saveUrlBtn').addEventListener('click', () => {
+  const u = $('urlInput').value.trim();
+  if(!validBackend(u)){
+    showStatus($('setupStatus'), 'err', 'URL sahi nahi hai. Ye https://script.google.com/macros/s/.../exec jaisa hona chahiye.');
+    return;
+  }
+  lsSet('backendUrl', u);
+  location.reload();
+});
+
+/* =====================================================
+   USER SIDE: OneSignal + Enable Notifications
+   Service worker (OneSignalSDKWorker.js) OneSignal khud register karta hai.
+   ===================================================== */
+let OS = null;
 const enableBtn  = $('enableBtn');
 const userStatus = $('userStatus');
 
-window.OneSignalDeferred = window.OneSignalDeferred || [];
-OneSignalDeferred.push(async function(OneSignal){
-  if(!isConfigured()){
-    enableBtn.textContent = 'Setup pending';
-    showStatus(userStatus, 'warn', 'index.html me ONESIGNAL_APP_ID aur BACKEND_URL replace kijiye.');
+async function bootPush(){
+  if(!BACKEND_URL){
+    setupCard.classList.remove('hidden');
+    $('userCard').classList.add('hidden');
     return;
   }
+  // 1) Backend se OneSignal App ID lo
+  let appId = '';
   try{
-    await OneSignal.init({
-      appId: ONESIGNAL_APP_ID,
-      serviceWorkerPath: 'OneSignalSDKWorker.js',
-      notifyButton: { enable: false },          // hum apna button use kar rahe hain
-      allowLocalhostAsSecureOrigin: true         // local testing ke liye
-    });
-    OS = OneSignal;
-
-    // Subscription badle (opt-in / opt-out) to UI refresh karo
-    OS.User.PushSubscription.addEventListener('change', refreshUI);
-    await refreshUI();
+    const cfg = await getFromBackend('action=config');
+    appId = cfg && cfg.appId ? String(cfg.appId) : '';
   }catch(err){
     console.error(err);
-    enableBtn.textContent = 'Enable Notifications';
-    enableBtn.disabled = false;
-    showStatus(userStatus, 'err', 'OneSignal start nahi hua: ' + (err.message || err));
+    enableBtn.textContent = 'Connect nahi hua';
+    showStatus(userStatus, 'err', 'Backend se connect nahi ho paya. Internet check kijiye ya Apps Script deploy (Access: Anyone) dekhiye.');
+    return;
   }
-});
+  if(!appId || appId.indexOf('YOUR_') === 0){
+    enableBtn.textContent = 'Setup pending';
+    showStatus(userStatus, 'warn', 'Code.gs me ONESIGNAL_APP_ID daaliye, phir Apps Script ko New version deploy kijiye.');
+    return;
+  }
 
-// Button aur status ko current state ke hisaab se update karta hai
+  // 2) OneSignal SDK load karo aur init karo
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal){
+    try{
+      await OneSignal.init({
+        appId: appId,
+        serviceWorkerPath: 'OneSignalSDKWorker.js',
+        notifyButton: { enable: false },
+        allowLocalhostAsSecureOrigin: true
+      });
+      OS = OneSignal;
+      OS.User.PushSubscription.addEventListener('change', refreshUI);
+      await refreshUI();
+    }catch(err){
+      console.error(err);
+      enableBtn.textContent = 'Enable Notifications';
+      enableBtn.disabled = false;
+      showStatus(userStatus, 'err', 'OneSignal start nahi hua: ' + (err.message || err) + ' (OneSignal me Site URL sahi hai?)');
+    }
+  });
+  const s = document.createElement('script');
+  s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+  s.defer = true;
+  s.onerror = () => {
+    enableBtn.textContent = 'Enable Notifications';
+    showStatus(userStatus, 'err', 'OneSignal load nahi hua. Internet check kijiye.');
+  };
+  document.head.appendChild(s);
+}
+
 async function refreshUI(){
   if(!OS) return;
   const optedIn = OS.User.PushSubscription.optedIn;
@@ -213,8 +281,7 @@ async function refreshUI(){
     enableBtn.textContent = '✅ Subscribed';
     enableBtn.classList.add('done');
     enableBtn.disabled = true;
-    // Agar pehle register fail hua tha to chupke se dobara try karo
-    silentRegister();
+    silentRegister();   // agar pehle save fail hua tha to chupke se dobara
   }else{
     enableBtn.textContent = 'Enable Notifications';
     enableBtn.classList.remove('done');
@@ -225,7 +292,6 @@ async function refreshUI(){
   }
 }
 
-// playerId (subscription id) aane tak intezaar karta hai (max ~10 sec)
 async function waitForPlayerId(){
   for(let i = 0; i < 40; i++){
     const id = OS.User.PushSubscription.id;
@@ -235,36 +301,33 @@ async function waitForPlayerId(){
   return null;
 }
 
-// playerId ko Google Sheet ("Subscribers") me save karta hai
 async function registerPlayer(playerId){
   const data = await postToBackend({ action: 'register', playerId: playerId });
   if(!data.ok) throw new Error(data.error || 'Register fail');
-  try{ localStorage.setItem('registeredId', playerId); }catch(e){}
+  lsSet('registeredId', playerId);
 }
 
-// Page load par: agar subscribed hai par id save nahi hui, to ab save kar do
 async function silentRegister(){
   try{
     const id = await waitForPlayerId();
     if(!id) return;
-    if(localStorage.getItem('registeredId') === id) return; // pehle se saved
+    if(lsGet('registeredId') === id) return;
     await registerPlayer(id);
   }catch(e){ console.warn('Silent register fail:', e); }
 }
 
-// "Enable Notifications" button click
 enableBtn.addEventListener('click', async () => {
   if(!OS){ showStatus(userStatus, 'err', 'OneSignal abhi ready nahi hai, thodi der baad try kijiye.'); return; }
   enableBtn.disabled = true;
   showStatus(userStatus, 'info', 'Permission maangi ja rahi hai…');
   try{
-    await OS.Notifications.requestPermission();           // browser popup
+    await OS.Notifications.requestPermission();
     if(!OS.Notifications.permission){
       showStatus(userStatus, 'err', 'Permission deny ho gayi. Settings me jaakar Allow kijiye.');
       enableBtn.disabled = false;
       return;
     }
-    await OS.User.PushSubscription.optIn();               // subscription active karo
+    await OS.User.PushSubscription.optIn();
     const playerId = await waitForPlayerId();
     if(!playerId) throw new Error('Subscription ID nahi mili, dobara try kijiye.');
     await registerPlayer(playerId);
@@ -277,54 +340,69 @@ enableBtn.addEventListener('click', async () => {
   }
 });
 
+bootPush();
+
 /* =====================================================
-   PART 2 — HIDDEN ADMIN PANEL
+   HIDDEN ADMIN PANEL
    Background par 1.5 sec ke andar 5 tap → password prompt
+   Password ab BACKEND (Code.gs) me verify hota hai, isliye page source me nahi dikhta.
    ===================================================== */
-const adminCard = $('adminCard');
+const adminCard   = $('adminCard');
 const adminStatus = $('adminStatus');
 
 function showAdmin(){ adminCard.classList.remove('hidden'); }
 function hideAdmin(){ adminCard.classList.add('hidden'); }
+function adminLogout(){ lsDel('isAdmin'); lsDel('adminPw'); hideAdmin(); }
 
-// Page load par: agar pehle unlock kiya tha to panel dikhao
-try{ if(localStorage.getItem('isAdmin') === '1') showAdmin(); }catch(e){}
+// Pehle unlock kiya tha to panel dikhao
+if(lsGet('isAdmin') === '1' && lsGet('adminPw')) showAdmin();
 
 let tapTimes = [];
-document.addEventListener('click', (e) => {
-  // Buttons, inputs aur cards par tap ginti me nahi aayega — sirf background
-  if(e.target.closest('button, input, textarea, label, .card')) return;
+document.addEventListener('click', async (e) => {
+  if(e.target.closest('button, input, textarea, label, .card')) return;   // sirf background tap
   const now = Date.now();
   tapTimes.push(now);
-  tapTimes = tapTimes.filter(t => now - t <= 1500);  // sirf pichhle 1.5 sec ke taps
-  if(tapTimes.length >= 5){
-    tapTimes = [];
-    if(!adminCard.classList.contains('hidden')) return;   // pehle se unlocked
-    const pwd = window.prompt('Admin password daaliye:');
-    if(pwd === null) return;                              // cancel
-    if(pwd === ADMIN_PASSWORD){
-      try{ localStorage.setItem('isAdmin', '1'); }catch(e){}
+  tapTimes = tapTimes.filter(t => now - t <= 1500);
+  if(tapTimes.length < 5) return;
+  tapTimes = [];
+  if(!adminCard.classList.contains('hidden')) return;
+
+  if(!BACKEND_URL){ alert('Pehle upar Web App URL save kijiye.'); return; }
+  const pwd = window.prompt('Admin password daaliye:');
+  if(pwd === null) return;
+  try{
+    const data = await postToBackend({ action: 'verify', password: pwd });
+    if(data.ok){
+      lsSet('isAdmin', '1');
+      lsSet('adminPw', pwd);
       showAdmin();
     }else{
       alert('Galat password.');
     }
+  }catch(err){
+    alert('Backend se connect nahi hua: ' + (err.message || err));
   }
 });
 
-// Logout: panel chhupa do aur isAdmin hata do
-$('logoutBtn').addEventListener('click', () => {
-  try{ localStorage.removeItem('isAdmin'); }catch(e){}
-  hideAdmin();
+$('logoutBtn').addEventListener('click', adminLogout);
+
+// Backend URL badalna
+$('changeUrlBtn').addEventListener('click', () => {
+  const u = window.prompt('Naya Web App URL (/exec wala):', BACKEND_URL);
+  if(u === null) return;
+  if(!validBackend(u)){ alert('URL sahi nahi hai.'); return; }
+  lsSet('backendUrl', u.trim());
+  location.reload();
 });
 
-// "Send Notification" button
+// Send Notification
 $('sendBtn').addEventListener('click', async () => {
   const sendBtn = $('sendBtn');
   const message = $('msgInput').value.trim();
-  const timeVal = $('timeInput').value;     // "2026-11-01T18:30" (device ka local time)
+  const timeVal = $('timeInput').value;
 
   if(!message){ showStatus(adminStatus, 'err', 'Pehle message likhiye.'); return; }
-  if(!isConfigured()){ showStatus(adminStatus, 'err', 'BACKEND_URL abhi replace nahi hua.'); return; }
+  if(!BACKEND_URL){ showStatus(adminStatus, 'err', 'Backend URL set nahi hai.'); return; }
 
   // Local time ko ISO (UTC) me badalte hain taaki timezone ka confusion na ho
   let time = '';
@@ -337,8 +415,11 @@ $('sendBtn').addEventListener('click', async () => {
   sendBtn.disabled = true;
   showStatus(adminStatus, 'info', time ? 'Schedule ho raha hai…' : 'Bheja ja raha hai…');
   try{
-    const data = await postToBackend({ action: 'schedule', message: message, time: time });
-    if(!data.ok) throw new Error(data.error || 'Request fail');
+    const data = await postToBackend({ action: 'schedule', message: message, time: time, password: lsGet('adminPw') || '' });
+    if(!data.ok){
+      if(data.error === 'unauthorized'){ adminLogout(); throw new Error('Password ab sahi nahi hai, dobara unlock kijiye.'); }
+      throw new Error(data.error || 'Request fail');
+    }
     showStatus(adminStatus, 'ok', time
       ? '✅ Schedule ho gaya! Time par (5 min ke andar) send hoga.'
       : '✅ Notification bhej di gayi!');

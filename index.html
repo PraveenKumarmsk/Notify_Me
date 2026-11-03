@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notify App</title>
+<meta name="theme-color" content="#4f46e5">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon-192x192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Notify">
+
+<!-- OneSignal v16 SDK (ye hi ek external script hai jo allowed hai) -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+
+<style>
+  /* ===== Colors aur basic variables ===== */
+  :root{
+    --primary:#4f46e5;
+    --primary-dark:#4338ca;
+    --bg:#f3f4f9;
+    --card:#ffffff;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --ok:#16a34a;
+    --err:#dc2626;
+    --warn:#d97706;
+    --shadow:0 8px 24px rgba(79,70,229,.12);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;min-height:100%}
+  body{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex;justify-content:center;
+    padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+  }
+  /* #app poora page cover karta hai taaki background tap pakda ja sake */
+  #app{width:100%;max-width:440px;min-height:100vh;padding:28px 0 40px;display:flex;flex-direction:column;gap:18px}
+
+  header{text-align:center}
+  .logo{
+    width:72px;height:72px;margin:0 auto 12px;border-radius:22px;
+    background:linear-gradient(135deg,#6366f1,#4f46e5);
+    display:flex;align-items:center;justify-content:center;
+    font-size:36px;box-shadow:var(--shadow);
+  }
+  h1{margin:0;font-size:24px}
+  .sub{margin:6px 0 0;color:var(--muted);font-size:14px}
+
+  /* ===== Cards ===== */
+  .card{background:var(--card);border-radius:20px;padding:22px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 6px;font-size:18px}
+  .card p{margin:0 0 16px;color:var(--muted);font-size:14px;line-height:1.5}
+
+  /* ===== Buttons ===== */
+  button{font:inherit;cursor:pointer;border:0}
+  .btn{
+    width:100%;padding:18px;border-radius:16px;
+    background:var(--primary);color:#fff;font-size:18px;font-weight:600;
+    box-shadow:0 6px 16px rgba(79,70,229,.35);transition:transform .1s,background .2s;
+  }
+  .btn:active{transform:scale(.97)}
+  .btn:hover{background:var(--primary-dark)}
+  .btn:disabled{background:#9ca3af;box-shadow:none;cursor:not-allowed;transform:none}
+  .btn.done{background:var(--ok);box-shadow:none}
+  .btn.small{padding:14px;font-size:16px;margin-top:6px}
+
+  /* ===== Inputs ===== */
+  label{display:block;font-size:13px;font-weight:600;margin:12px 0 6px}
+  input[type=text],input[type=datetime-local],textarea{
+    width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid #e5e7eb;
+    font:inherit;font-size:16px;background:#fafafa;color:var(--text);outline:none;
+  }
+  input:focus,textarea:focus{border-color:var(--primary);background:#fff}
+  textarea{resize:vertical;min-height:90px}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px}
+
+  /* ===== Status messages ===== */
+  .status{margin-top:14px;padding:12px 14px;border-radius:12px;font-size:14px;line-height:1.4;display:none}
+  .status.show{display:block}
+  .status.ok{background:#dcfce7;color:#166534}
+  .status.err{background:#fee2e2;color:#991b1b}
+  .status.info{background:#e0e7ff;color:#3730a3}
+  .status.warn{background:#fef3c7;color:#92400e}
+
+  .hidden{display:none !important}
+  .admin-badge{display:inline-block;font-size:11px;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
+  .link-btn{background:none;color:var(--muted);font-size:12px;text-decoration:underline;margin-top:12px;padding:0}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:auto}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">🔔</div>
+    <h1>Notify App</h1>
+    <p class="sub">Important updates seedha aapke phone par</p>
+  </header>
+
+  <!-- ===== USER CARD: Enable Notifications ===== -->
+  <section class="card" id="userCard">
+    <h2>Notifications</h2>
+    <p>Button dabaiye aur permission "Allow" kijiye, tabhi aapko notifications milenge.</p>
+    <button class="btn" id="enableBtn" disabled>Loading…</button>
+    <div class="status" id="userStatus"></div>
+  </section>
+
+  <!-- ===== ADMIN CARD: hidden by default ===== -->
+  <section class="card hidden" id="adminCard">
+    <h2>Admin Panel <span class="admin-badge">ADMIN</span></h2>
+    <p>Message likhiye. Time khali chhodenge to turant send hoga.</p>
+
+    <label for="msgInput">Message</label>
+    <textarea id="msgInput" placeholder="Yahan notification ka message likhiye…" maxlength="300"></textarea>
+
+    <label for="timeInput">Schedule time (optional)</label>
+    <input type="datetime-local" id="timeInput">
+    <div class="hint">Blank = abhi bhejo. Schedule ka time 5 minute ke gap me check hota hai.</div>
+
+    <button class="btn small" id="sendBtn">Send Notification</button>
+    <div class="status" id="adminStatus"></div>
+    <button class="link-btn" id="logoutBtn">Admin se logout</button>
+  </section>
+
+  <footer>Admin panel ke liye background par 5 baar tap kijiye.</footer>
+</div>
+
+<script>
+/* =====================================================
+   CONFIG — yahan apni values daaliye (placeholders replace karein)
+   ===================================================== */
+const ONESIGNAL_APP_ID = "YOUR_ONESIGNAL_APP_ID";   // OneSignal dashboard se App ID
+const BACKEND_URL      = "YOUR_GAS_WEBAPP_URL";     // Apps Script Web App ka /exec URL
+const ADMIN_PASSWORD   = "admin123";                // Admin password (baad me badal lein)
+
+/* =====================================================
+   Chhote helper functions
+   ===================================================== */
+const $ = (id) => document.getElementById(id);
+
+// Status message dikhane ke liye (type: ok | err | info | warn)
+function showStatus(el, type, text){
+  el.className = 'status show ' + type;
+  el.textContent = text;
+}
+
+// Placeholder abhi tak replace hua ya nahi, ye check karta hai
+function isConfigured(){
+  return ONESIGNAL_APP_ID && !ONESIGNAL_APP_ID.startsWith('YOUR_') &&
+         BACKEND_URL && !BACKEND_URL.startsWith('YOUR_');
+}
+
+/* Apps Script ko POST bhejne ka function.
+   NOTE: Content-Type 'text/plain' isliye rakha hai taaki browser "preflight"
+   (OPTIONS request) na bheje — Apps Script OPTIONS support nahi karta. */
+async function postToBackend(payload){
+  const res = await fetch(BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('Server error: ' + res.status);
+  return await res.json();
+}
+
+/* =====================================================
+   PART 1 — USER SIDE: OneSignal + Enable Notifications
+   NOTE: Service worker (OneSignalSDKWorker.js) ko OneSignal SDK khud
+   register karta hai init() ke time par, isliye alag se register nahi kiya.
+   ===================================================== */
+let OS = null;                 // OneSignal object yahan store hoga
+const enableBtn  = $('enableBtn');
+const userStatus = $('userStatus');
+
+window.OneSignalDeferred = window.OneSignalDeferred || [];
+OneSignalDeferred.push(async function(OneSignal){
+  if(!isConfigured()){
+    enableBtn.textContent = 'Setup pending';
+    showStatus(userStatus, 'warn', 'index.html me ONESIGNAL_APP_ID aur BACKEND_URL replace kijiye.');
+    return;
+  }
+  try{
+    await OneSignal.init({
+      appId: ONESIGNAL_APP_ID,
+      serviceWorkerPath: 'OneSignalSDKWorker.js',
+      notifyButton: { enable: false },          // hum apna button use kar rahe hain
+      allowLocalhostAsSecureOrigin: true         // local testing ke liye
+    });
+    OS = OneSignal;
+
+    // Subscription badle (opt-in / opt-out) to UI refresh karo
+    OS.User.PushSubscription.addEventListener('change', refreshUI);
+    await refreshUI();
+  }catch(err){
+    console.error(err);
+    enableBtn.textContent = 'Enable Notifications';
+    enableBtn.disabled = false;
+    showStatus(userStatus, 'err', 'OneSignal start nahi hua: ' + (err.message || err));
+  }
+});
+
+// Button aur status ko current state ke hisaab se update karta hai
+async function refreshUI(){
+  if(!OS) return;
+  const optedIn = OS.User.PushSubscription.optedIn;
+  if(optedIn){
+    enableBtn.textContent = '✅ Subscribed';
+    enableBtn.classList.add('done');
+    enableBtn.disabled = true;
+    // Agar pehle register fail hua tha to chupke se dobara try karo
+    silentRegister();
+  }else{
+    enableBtn.textContent = 'Enable Notifications';
+    enableBtn.classList.remove('done');
+    enableBtn.disabled = false;
+    if(Notification.permission === 'denied'){
+      showStatus(userStatus, 'err', 'Notifications blocked hain. Browser/site settings me jaakar Allow kijiye.');
+    }
+  }
+}
+
+// playerId (subscription id) aane tak intezaar karta hai (max ~10 sec)
+async function waitForPlayerId(){
+  for(let i = 0; i < 40; i++){
+    const id = OS.User.PushSubscription.id;
+    if(id) return id;
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return null;
+}
+
+// playerId ko Google Sheet ("Subscribers") me save karta hai
+async function registerPlayer(playerId){
+  const data = await postToBackend({ action: 'register', playerId: playerId });
+  if(!data.ok) throw new Error(data.error || 'Register fail');
+  try{ localStorage.setItem('registeredId', playerId); }catch(e){}
+}
+
+// Page load par: agar subscribed hai par id save nahi hui, to ab save kar do
+async function silentRegister(){
+  try{
+    const id = await waitForPlayerId();
+    if(!id) return;
+    if(localStorage.getItem('registeredId') === id) return; // pehle se saved
+    await registerPlayer(id);
+  }catch(e){ console.warn('Silent register fail:', e); }
+}
+
+// "Enable Notifications" button click
+enableBtn.addEventListener('click', async () => {
+  if(!OS){ showStatus(userStatus, 'err', 'OneSignal abhi ready nahi hai, thodi der baad try kijiye.'); return; }
+  enableBtn.disabled = true;
+  showStatus(userStatus, 'info', 'Permission maangi ja rahi hai…');
+  try{
+    await OS.Notifications.requestPermission();           // browser popup
+    if(!OS.Notifications.permission){
+      showStatus(userStatus, 'err', 'Permission deny ho gayi. Settings me jaakar Allow kijiye.');
+      enableBtn.disabled = false;
+      return;
+    }
+    await OS.User.PushSubscription.optIn();               // subscription active karo
+    const playerId = await waitForPlayerId();
+    if(!playerId) throw new Error('Subscription ID nahi mili, dobara try kijiye.');
+    await registerPlayer(playerId);
+    showStatus(userStatus, 'ok', 'Done! Aap ab notifications paayenge. 🎉');
+    await refreshUI();
+  }catch(err){
+    console.error(err);
+    showStatus(userStatus, 'err', 'Error: ' + (err.message || err));
+    enableBtn.disabled = false;
+  }
+});
+
+/* =====================================================
+   PART 2 — HIDDEN ADMIN PANEL
+   Background par 1.5 sec ke andar 5 tap → password prompt
+   ===================================================== */
+const adminCard = $('adminCard');
+const adminStatus = $('adminStatus');
+
+function showAdmin(){ adminCard.classList.remove('hidden'); }
+function hideAdmin(){ adminCard.classList.add('hidden'); }
+
+// Page load par: agar pehle unlock kiya tha to panel dikhao
+try{ if(localStorage.getItem('isAdmin') === '1') showAdmin(); }catch(e){}
+
+let tapTimes = [];
+document.addEventListener('click', (e) => {
+  // Buttons, inputs aur cards par tap ginti me nahi aayega — sirf background
+  if(e.target.closest('button, input, textarea, label, .card')) return;
+  const now = Date.now();
+  tapTimes.push(now);
+  tapTimes = tapTimes.filter(t => now - t <= 1500);  // sirf pichhle 1.5 sec ke taps
+  if(tapTimes.length >= 5){
+    tapTimes = [];
+    if(!adminCard.classList.contains('hidden')) return;   // pehle se unlocked
+    const pwd = window.prompt('Admin password daaliye:');
+    if(pwd === null) return;                              // cancel
+    if(pwd === ADMIN_PASSWORD){
+      try{ localStorage.setItem('isAdmin', '1'); }catch(e){}
+      showAdmin();
+    }else{
+      alert('Galat password.');
+    }
+  }
+});
+
+// Logout: panel chhupa do aur isAdmin hata do
+$('logoutBtn').addEventListener('click', () => {
+  try{ localStorage.removeItem('isAdmin'); }catch(e){}
+  hideAdmin();
+});
+
+// "Send Notification" button
+$('sendBtn').addEventListener('click', async () => {
+  const sendBtn = $('sendBtn');
+  const message = $('msgInput').value.trim();
+  const timeVal = $('timeInput').value;     // "2026-11-01T18:30" (device ka local time)
+
+  if(!message){ showStatus(adminStatus, 'err', 'Pehle message likhiye.'); return; }
+  if(!isConfigured()){ showStatus(adminStatus, 'err', 'BACKEND_URL abhi replace nahi hua.'); return; }
+
+  // Local time ko ISO (UTC) me badalte hain taaki timezone ka confusion na ho
+  let time = '';
+  if(timeVal){
+    const d = new Date(timeVal);
+    if(isNaN(d.getTime())){ showStatus(adminStatus, 'err', 'Time sahi nahi hai.'); return; }
+    time = d.toISOString();
+  }
+
+  sendBtn.disabled = true;
+  showStatus(adminStatus, 'info', time ? 'Schedule ho raha hai…' : 'Bheja ja raha hai…');
+  try{
+    const data = await postToBackend({ action: 'schedule', message: message, time: time });
+    if(!data.ok) throw new Error(data.error || 'Request fail');
+    showStatus(adminStatus, 'ok', time
+      ? '✅ Schedule ho gaya! Time par (5 min ke andar) send hoga.'
+      : '✅ Notification bhej di gayi!');
+    $('msgInput').value = '';
+    $('timeInput').value = '';
+  }catch(err){
+    console.error(err);
+    showStatus(adminStatus, 'err', 'Error: ' + (err.message || err));
+  }finally{
+    sendBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

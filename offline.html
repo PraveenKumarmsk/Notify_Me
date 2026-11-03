@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline — Notify App</title>
+<meta name="theme-color" content="#4f46e5">
+<style>
+  /* Offline page: simple aur halka, koi external file nahi */
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:#f3f4f9;color:#1f2937;padding:20px;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  .card{
+    width:100%;max-width:400px;background:#fff;border-radius:20px;padding:32px 24px;
+    text-align:center;box-shadow:0 8px 24px rgba(79,70,229,.12);
+  }
+  .icon{font-size:56px;margin-bottom:8px}
+  h1{margin:0 0 8px;font-size:22px}
+  p{margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.5}
+  button{
+    width:100%;padding:16px;border:0;border-radius:14px;background:#4f46e5;color:#fff;
+    font:inherit;font-size:17px;font-weight:600;cursor:pointer;
+    box-shadow:0 6px 16px rgba(79,70,229,.35);
+  }
+  button:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Aap offline hain</h1>
+    <p>Internet connection nahi mil raha. Connection check kijiye aur dobara try kijiye.</p>
+    <!-- Dubara load karne ka button -->
+    <button onclick="location.href='/'">Retry</button>
+  </div>
+  <script>
+    // Internet wapas aate hi apne aap main page par chale jao
+    window.addEventListener('online', function(){ location.href = '/'; });
+  </script>
+</body>
+</html>

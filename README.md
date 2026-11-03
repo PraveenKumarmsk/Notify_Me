@@ -1,11 +1,11 @@
-# Notify App — Easy Setup (CMD Notes jaisa)
+# Notify App — Easy Setup 
 
 Aapko sirf **Code.gs** me 3 values badalni hain. `index.html` me kuch badalna nahi hai
 (aapka Web App URL pehle se bhara hua hai, OneSignal App ID backend se khud aata hai).
 
 ## Aapke URLs
 - Google Sheet: https://docs.google.com/spreadsheets/d/1nSSRD3ANeq6lgYf33FmRil1Le-ElHOmK2BoAokpxdcc/edit
-- Web App URL (Apps Script): https://script.google.com/macros/s/AKfycbxgzNhqhgx6jsTKfOIN2GM1vT1RnUZ-F6PFN4quOIs3xCVzwzobRehLZ_WMdXaj-vRo/exec
+- Web App URL (Apps Script): https://script.google.com/macros/s/AKfycbxMZ6_kFZsaSzpe0Cp7EcGmI9-YgKilrHXSVbq-NQ75AY3hK4TQQ7vaO92esKqCQt6P/exec
 - App ka URL (GitHub Pages): https://USERNAME.github.io   (USERNAME = aapka GitHub username)
 
 ## Step 1 — GitHub par publish

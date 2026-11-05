@@ -5,7 +5,7 @@ Aapko sirf **Code.gs** me 2 values badalni hain: REST API Key aur ADMIN_PASSWORD
 
 ## Aapke URLs
 - Google Sheet: https://docs.google.com/spreadsheets/d/1nSSRD3ANeq6lgYf33FmRil1Le-ElHOmK2BoAokpxdcc/edit
-- Web App URL (Apps Script): https://script.google.com/macros/s/AKfycbxMZ6_kFZsaSzpe0Cp7EcGmI9-YgKilrHXSVbq-NQ75AY3hK4TQQ7vaO92esKqCQt6P/exec
+- Web App URL (Apps Script): https://script.google.com/macros/s/AKfycby6_tQR_SYIAyTtdMqDOSgfi5pP8IUtYiZOayvtQDihJuy1wXkCHDjw1eVhUd79we0w/exec
 - App ka URL (GitHub Pages): https://praveenkumarmsk.github.io
 - OneSignal App ID: aed59c0f-2f2a-44f2-b16b-d62ff22e563e (Code.gs me pehle se bhari hai)
 

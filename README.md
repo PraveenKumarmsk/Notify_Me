@@ -1,4 +1,4 @@
-# Notify App — Easy Setup (CMD Notes jaisa)
+# Notify App — Easy Setup
 
 Aapko sirf **Code.gs** me 2 values badalni hain: REST API Key aur ADMIN_PASSWORD (App ID pehle se bhari hai). `index.html` me kuch badalna nahi hai
 (aapka Web App URL pehle se bhara hua hai, OneSignal App ID backend se khud aata hai).

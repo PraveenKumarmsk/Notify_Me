@@ -5,9 +5,9 @@
    2) Offline: app ka shell cache me rakhta hai
    ===================================================================== */
 
-const CACHE = 'pingme-v1';                       // app update karne par v2, v3... kar dein
+const CACHE = 'pingme-v2';                       // app update karne par v2, v3... kar dein
 const SHELL = ['./', 'index.html', 'style.css', 'script.js', 'manifest.json',
-               'icons/icon-192x192.png', 'icons/icon-512x512.png'];
+               'icons/icon-192x192.png', 'icons/icon-512x512.png', 'icons/badge-96x96.png'];
 const SCOPE = self.registration.scope;
 const url = (p) => new URL(p, SCOPE).href;
 
@@ -83,7 +83,7 @@ async function showMsg(n) {
   await self.registration.showNotification(title, {
     body: n.message,
     icon: url('icons/icon-192x192.png'),
-    badge: url('icons/icon-192x192.png'),
+    badge: url('icons/badge-96x96.png'),            // status bar ka chhota icon (white + transparent hona zaroori)
     tag: n.id || undefined,
     timestamp: n.at ? Date.parse(n.at) : Date.now(),
     data: { id: n.id || '', from: n.from || '' }
@@ -120,7 +120,7 @@ async function handlePush(event) {
     await self.registration.showNotification('PingMe', {
       body: 'Aapke liye naya message hai. App kholkar dekhiye.',
       icon: url('icons/icon-192x192.png'),
-      badge: url('icons/icon-192x192.png'),
+      badge: url('icons/badge-96x96.png'),
       tag: 'pingme-generic'
     });
     if (fetched) {   // server ne bola koi naya nahi (duplicate push) → generic ko turant hata do

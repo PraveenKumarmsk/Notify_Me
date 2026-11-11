@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="hi" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PingMe</title>
+<meta name="description" content="Apne connected doston ko instant ya scheduled push notification bhejiye.">
+<meta name="theme-color" content="#6366f1">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/icon-192x192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PingMe">
+<link rel="stylesheet" href="style.css">
+<script>
+  /* Theme flash se bachne ke liye sabse pehle set karo */
+  (function () {
+    try {
+      var t = localStorage.getItem('theme');
+      if (!t) t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+
+<div id="offlineBar" class="offline-bar hidden">Aap offline hain — purana data dikh raha hai</div>
+
+<!-- ============ BACKEND URL SETUP (sirf jab URL na ho) ============ -->
+<section id="setupScreen" class="screen hidden">
+  <div class="auth-card">
+    <div class="brand"><img src="icons/icon-192x192.png" alt="" width="64" height="64"><h1>PingMe</h1></div>
+    <h2>Pehli baar setup</h2>
+    <p class="muted">Apps Script ka Web App URL (<b>/exec</b> par khatam hone wala) yahan paste kijiye. Ek baar save hone par is browser me yaad rahega.</p>
+    <label for="setupUrl">Web App URL</label>
+    <input id="setupUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <button class="btn primary block" id="setupSave">Save & Continue</button>
+    <div class="msg" id="setupMsg"></div>
+  </div>
+</section>
+
+<!-- ============ LOGIN / REGISTER ============ -->
+<section id="authScreen" class="screen hidden">
+  <div class="auth-card">
+    <div class="brand"><img src="icons/icon-192x192.png" alt="" width="64" height="64"><h1>PingMe</h1></div>
+    <p class="muted center">Apne doston ko seedha unke phone par notification bhejiye.</p>
+
+    <div class="seg" id="authTabs" role="tablist">
+      <button class="seg-btn active" data-auth="login" role="tab">Login</button>
+      <button class="seg-btn" data-auth="register" role="tab">New User</button>
+    </div>
+
+    <form id="authForm" autocomplete="on" novalidate>
+      <div id="nameRow" class="hidden">
+        <label for="fName">Aapka naam</label>
+        <input id="fName" type="text" maxlength="40" placeholder="Jaise: Praveen" autocomplete="name">
+      </div>
+      <label for="fUser">User ID</label>
+      <input id="fUser" type="text" maxlength="20" placeholder="sirf a-z, 0-9, _  (3-20)" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <label for="fPass">Password</label>
+      <input id="fPass" type="password" maxlength="100" placeholder="kam se kam 6 characters" autocomplete="current-password">
+      <button class="btn primary block" id="authSubmit" type="submit">Login</button>
+    </form>
+    <div class="msg" id="authMsg"></div>
+    <button class="link" id="changeBackend" type="button">Backend URL badlo</button>
+  </div>
+</section>
+
+<!-- ============ MAIN APP ============ -->
+<div id="appShell" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand small"><img src="icons/icon-192x192.png" alt="" width="36" height="36"><span>PingMe</span></div>
+    <nav class="nav" id="sideNav"></nav>
+    <div class="side-foot">
+      <div class="me-chip" id="meChip"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="top-actions">
+        <button class="icon-btn" id="refreshBtn" title="Refresh" aria-label="Refresh"></button>
+        <button class="icon-btn" id="themeBtn" title="Dark / Light" aria-label="Theme"></button>
+      </div>
+    </header>
+    <div id="view" class="view"></div>
+  </main>
+
+  <nav class="bottomnav" id="bottomNav"></nav>
+</div>
+
+<!-- ============ MODAL (schedule popup etc.) ============ -->
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-card" id="modalCard"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>

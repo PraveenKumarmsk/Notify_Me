@@ -86,10 +86,10 @@ async function api(action, data) {
   try {
     res = await fetch(S.backend, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body, signal: ctl.signal });
   } catch (e) {
-    throw new Error(navigator.onLine ? 'Server se connect nahi ho paya. Web App URL aur deploy setting (Access: Anyone) check kijiye.' : 'Internet nahi hai.');
+    throw new Error(navigator.onLine ? 'Could not connect to the server. Check the Web App URL and the deploy setting (Access: Anyone).' : 'No internet connection.');
   } finally { clearTimeout(timer); }
   let json;
-  try { json = await res.json(); } catch (e) { throw new Error('Server ka jawab samajh nahi aaya. Web App "Anyone" access ke saath deploy hai?'); }
+  try { json = await res.json(); } catch (e) { throw new Error('Could not understand the server response. Is the Web App deployed with "Anyone" access?'); }
   if (!json.ok) {
     if (json.code === 'auth' && S.token) forceLogout(json.error);
     const err = new Error(json.error || 'Error'); err.code = json.code; throw err;
@@ -164,14 +164,14 @@ function showOnly(id) {
 /* ---- Backend URL setup ---- */
 $('setupSave').addEventListener('click', () => {
   const u = $('setupUrl').value.trim();
-  if (!validBackend(u)) { setMsg($('setupMsg'), 'err', 'URL sahi nahi hai. Ye https://script.google.com/macros/s/.../exec jaisa hona chahiye.'); return; }
+  if (!validBackend(u)) { setMsg($('setupMsg'), 'err', 'Invalid URL. It should look like https://script.google.com/macros/s/.../exec'); return; }
   ls.set('backendUrl', u); location.reload();
 });
 $('changeBackend').addEventListener('click', changeBackend);
 function changeBackend() {
-  const u = window.prompt('Naya Web App URL (/exec wala):', S.backend);
+  const u = window.prompt('New Web App URL (/exec):', S.backend);
   if (u === null) return;
-  if (!validBackend(u)) { alert('URL sahi nahi hai.'); return; }
+  if (!validBackend(u)) { alert('Invalid URL.'); return; }
   ls.set('backendUrl', u.trim()); location.reload();
 }
 
@@ -180,7 +180,7 @@ function setAuthMode(mode) {
   S.authMode = mode;
   document.querySelectorAll('#authTabs .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.auth === mode));
   $('nameRow').classList.toggle('hidden', mode !== 'register');
-  $('authSubmit').textContent = mode === 'login' ? 'Login' : 'Account banao';
+  $('authSubmit').textContent = mode === 'login' ? 'Login' : 'Create account';
   $('fPass').setAttribute('autocomplete', mode === 'login' ? 'current-password' : 'new-password');
   clearMsg($('authMsg'));
 }
@@ -190,8 +190,8 @@ $('authForm').addEventListener('submit', async (e) => {
   const userId = $('fUser').value.trim().toLowerCase(), password = $('fPass').value, name = $('fName').value.trim();
   const msg = $('authMsg'), btn = $('authSubmit');
   if (!/^[a-z0-9_]{3,20}$/.test(userId)) { setMsg(msg, 'err', 'User ID 3-20 characters: sirf a-z, 0-9 aur _'); return; }
-  if (password.length < 6) { setMsg(msg, 'err', 'Password kam se kam 6 characters ka rakhiye.'); return; }
-  btn.disabled = true; setMsg(msg, 'info', S.authMode === 'login' ? 'Login ho raha hai…' : 'Account ban raha hai…');
+  if (password.length < 6) { setMsg(msg, 'err', 'Password must be at least 6 characters.'); return; }
+  btn.disabled = true; setMsg(msg, 'info', S.authMode === 'login' ? 'Logging in…' : 'Creating account…');
   try {
     const r = await api(S.authMode, { userId: userId, password: password, name: name || userId });
     S.token = r.token; S.user = r.user;
@@ -211,7 +211,7 @@ function forceLogout(message) {
   if (message) setMsg($('authMsg'), 'warn', message);
 }
 async function logout() {
-  if (!confirm('Logout karna hai? Is device par notifications band ho jayengi.')) return;
+  if (!confirm('Log out? Notifications on this device will stop.')) return;
   try { await api('logout', { deviceId: deviceId() }); } catch (e) {}
   try {
     if ('serviceWorker' in navigator) { const reg = await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); }
@@ -244,7 +244,7 @@ document.addEventListener('click', (e) => {
   const n = e.target.closest('[data-nav]');
   if (n) navigate(n.dataset.nav);
 });
-const TITLES = { dashboard: 'Dashboard', compose: 'Notification bhejo', people: 'People', history: 'History', settings: 'Settings' };
+const TITLES = { dashboard: 'Dashboard', compose: 'Send notification', people: 'People', history: 'History', settings: 'Settings' };
 function navigate(view, opts) {
   S.view = view;
   if (opts && opts.tab) S.histTab = opts.tab;
@@ -295,7 +295,7 @@ async function render(withLoad) {
     await loadFor(S.view);
     setOffline(false);
   } catch (e) {
-    if (!navigator.onLine || /Internet nahi|connect nahi/.test(e.message)) setOffline(true);
+    if (!navigator.onLine || /No internet|Could not connect/.test(e.message)) setOffline(true);
     else toast(e.message, true);
   }
   if (seq === loadSeq) {
@@ -371,14 +371,14 @@ function viewDashboard() {
   const recent = (S.hist.received || []).slice(0, 4);
   const recentHtml = recent.length
     ? recent.map((i) => bubbleHtml(i, 'received', true)).join('')
-    : '<div class="empty">Abhi koi notification nahi aayi.</div>';
+    : '<div class="empty">No notifications yet.</div>';
   return '' +
     '<div class="card hero"><div><h3>Hi, ' + esc(S.user ? S.user.name : '') + '</h3><p>@' + esc(S.user ? S.user.id : '') + ' &middot; ' + esc(st.connected) + ' connected</p></div>' +
-    '<button class="btn" data-nav="compose">' + icon('send') + ' Notification bhejo</button></div>' +
+    '<button class="btn" data-nav="compose">' + icon('send') + ' Send notification</button></div>' +
     '<div id="pushCard"></div>' +
     '<div class="stats">' + cards + '</div>' +
-    (S.installEvt ? '<div class="card"><div class="card-head"><div><h3>App install kijiye</h3><div class="muted small">Home screen par icon aayega aur app full-screen khulega.</div></div><button class="btn primary sm" data-act="install">Install</button></div></div>' : '') +
-    '<div class="card"><div class="card-head"><h3>Recent notifications</h3><button class="btn sm" data-nav="history">Sab dekhein</button></div><div>' + recentHtml + '</div></div>';
+    (S.installEvt ? '<div class="card"><div class="card-head"><div><h3>Install the app</h3><div class="muted small">Adds an icon to your home screen and opens full-screen.</div></div><button class="btn primary sm" data-act="install">Install</button></div></div>' : '') +
+    '<div class="card"><div class="card-head"><h3>Recent notifications</h3><button class="btn sm" data-nav="history">View all</button></div><div>' + recentHtml + '</div></div>';
 }
 
 /* ---------- Push status card (dashboard + settings) ---------- */
@@ -399,23 +399,23 @@ async function updatePushUi() {
     let inner;
     if (!pushSupported()) {
       inner = '<h3>Push notifications</h3><div class="msg show warn">' + (isIOS() && !isStandalone()
-        ? 'iPhone par: Safari me Share &rarr; <b>Add to Home Screen</b> karke app wahin se kholiye, tab push chalenge (iOS 16.4+).'
-        : 'Ye browser push notifications support nahi karta. Android par Chrome use kijiye.') + '</div>';
+        ? 'On iPhone: in Safari tap Share &rarr; <b>Add to Home Screen</b> and open the app from there — push works only then (iOS 16.4+).'
+        : 'This browser does not support push notifications. Use Chrome on Android.') + '</div>';
     } else if (S.pushSub) {
-      inner = '<div class="card-head"><div><h3>Push chalu hai</h3><div class="muted small">Is device par notifications aayengi.</div></div><button class="btn sm" data-act="testPush">Test bhejo</button></div>';
+      inner = '<div class="card-head"><div><h3>Push is on</h3><div class="muted small">This device will receive notifications.</div></div><button class="btn sm" data-act="testPush">Send test</button></div>';
     } else {
-      inner = '<div class="card-head"><div><h3>Notifications band hain</h3><div class="muted small">Is device par push paane ke liye Enable kijiye.</div></div><button class="btn primary sm" data-act="enablePush">Enable</button></div>' +
-        (S.vapidReady === false ? '<div class="msg show warn">Server setup adhoora hai: ' + esc(S.vapidMsg) + '</div>' : '');
+      inner = '<div class="card-head"><div><h3>Notifications are off</h3><div class="muted small">Enable to receive push on this device.</div></div><button class="btn primary sm" data-act="enablePush">Enable</button></div>' +
+        (S.vapidReady === false ? '<div class="msg show warn">Server setup incomplete: ' + esc(S.vapidMsg) + '</div>' : '');
     }
     box.innerHTML = '<div class="card">' + inner + '</div>';
   }
   const sb = $('settingsPush');
   if (sb) {
-    sb.innerHTML = !pushSupported() ? '<div class="muted">Ye browser push support nahi karta' + (isIOS() && !isStandalone() ? ' — pehle Add to Home Screen kijiye.' : '.') + '</div>'
+    sb.innerHTML = !pushSupported() ? '<div class="muted">This browser does not support push' + (isIOS() && !isStandalone() ? ' — first use Add to Home Screen.' : '.') + '</div>'
       : (S.pushSub
-        ? '<div class="kv"><span>Is device par push</span><b style="color:var(--ok)">Chalu</b></div><div class="acts" style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" data-act="testPush">Test notification</button><button class="btn sm danger" data-act="disablePush">Band karein</button></div>'
-        : '<div class="kv"><span>Is device par push</span><b style="color:var(--warn)">Band</b></div><button class="btn primary sm" style="margin-top:10px" data-act="enablePush">Enable notifications</button>' +
-          (S.vapidReady === false ? '<div class="msg show warn">Server setup adhoora hai: ' + esc(S.vapidMsg) + '</div>' : ''));
+        ? '<div class="kv"><span>Push on this device</span><b style="color:var(--ok)">On</b></div><div class="acts" style="display:flex;gap:8px;margin-top:10px"><button class="btn sm" data-act="testPush">Test notification</button><button class="btn sm danger" data-act="disablePush">Turn off</button></div>'
+        : '<div class="kv"><span>Push on this device</span><b style="color:var(--warn)">Off</b></div><button class="btn primary sm" style="margin-top:10px" data-act="enablePush">Enable notifications</button>' +
+          (S.vapidReady === false ? '<div class="msg show warn">Server setup incomplete: ' + esc(S.vapidMsg) + '</div>' : ''));
   }
 }
 
@@ -426,12 +426,12 @@ function composeWho() {
   const c = S.compose, fr = friendsList();
   let who;
   if (S.people === null) {
-    who = '<div class="empty">Load ho raha hai…</div>';
+    who = '<div class="empty">Loading…</div>';
   } else if (!fr.length) {
-    who = '<div class="empty">Abhi koi connected user nahi hai.<br><button class="btn primary sm" style="margin-top:10px" data-nav="people">User dhoondhein</button></div>';
+    who = '<div class="empty">No connected users yet.<br><button class="btn primary sm" style="margin-top:10px" data-nav="people">Find users</button></div>';
   } else {
     const multi = c.tab === 'bulk';
-    who = (multi ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="muted small" id="selCount"></span><button class="chip" data-act="selAll">Sabko chuniye</button></div>' : '') +
+    who = (multi ? '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="muted small" id="selCount"></span><button class="chip" data-act="selAll">Select all</button></div>' : '') +
       '<div class="pick">' + fr.map((f) => '<label class="opt ' + (c.to.indexOf(f.userId) !== -1 ? 'sel' : '') + '"><input type="' + (multi ? 'checkbox' : 'radio') + '" name="to" value="' + esc(f.userId) + '" ' + (c.to.indexOf(f.userId) !== -1 ? 'checked' : '') + '><span class="avatar" style="' + avStyle(f.userId) + '">' + esc(initial(f.name)) + '</span><span>' + esc(f.name) + ' <span class="muted small">@' + esc(f.userId) + '</span></span></label>').join('') + '</div>';
   }
   return who;
@@ -439,9 +439,9 @@ function composeWho() {
 function viewCompose() {
   const c = S.compose;
   const seg = ['instant|Instant', 'schedule|Schedule', 'bulk|Bulk'].map((s) => { const p = s.split('|'); return '<button class="seg-btn ' + (c.tab === p[0] ? 'active' : '') + '" data-ctab="' + p[0] + '">' + p[1] + '</button>'; }).join('');
-  const btnLabel = c.tab === 'instant' ? icon('send') + ' Abhi bhejo' : c.tab === 'schedule' ? icon('clock') + ' Time chuniye…' : icon('send') + ' <span id="bulkLbl">Sabko bhejo</span>';
+  const btnLabel = c.tab === 'instant' ? icon('send') + ' Send now' : c.tab === 'schedule' ? icon('clock') + ' Choose time…' : icon('send') + ' <span id="bulkLbl">Send to all</span>';
   return '<div class="card"><div class="seg" style="margin-top:0">' + seg + '</div>' +
-    '<label style="margin-top:6px">' + (c.tab === 'bulk' ? 'Kinko bhejna hai? (multiple)' : 'Kisko bhejna hai?') + '</label><div id="whoBox">' + composeWho() + '</div>' +
+    '<label style="margin-top:6px">' + (c.tab === 'bulk' ? 'Send to whom? (multiple)' : 'Send to whom?') + '</label><div id="whoBox">' + composeWho() + '</div>' +
     '<label for="cMsg">Message</label><textarea id="cMsg" maxlength="300" placeholder="Jaise: Hi, How are you?">' + esc(c.msg) + '</textarea>' +
     '<div class="counter"><span id="cCount">0</span>/300</div>' +
     '<div class="chips">' + QUICK.map((q) => '<button class="chip" type="button" data-quick="' + esc(q) + '">' + esc(q) + '</button>').join('') + '</div>' +
@@ -453,8 +453,8 @@ function afterCompose() {
 }
 function updateBulkLabel() {
   const n = S.compose.to.length;
-  if ($('selCount')) $('selCount').textContent = n + ' chune gaye';
-  if ($('bulkLbl')) $('bulkLbl').textContent = n ? n + ' ko bhejo' : 'Sabko bhejo';
+  if ($('selCount')) $('selCount').textContent = n + ' selected';
+  if ($('bulkLbl')) $('bulkLbl').textContent = n ? 'Send to ' + n : 'Send to all';
 }
 function readComposeInputs() { const t = $('cMsg'); if (t) S.compose.msg = t.value; }
 
@@ -463,17 +463,17 @@ function personRow(u, actions) {
   return '<div class="row"><div class="avatar" style="' + avStyle(u.userId) + '">' + esc(initial(u.name)) + '</div><div class="grow"><div class="title">' + esc(u.name) + '</div><div class="sub">@' + esc(u.userId) + '</div></div><div class="acts">' + actions + '</div></div>';
 }
 function viewPeople() {
-  return '<div class="card"><h3>User dhoondhein</h3><div class="muted small" style="margin-bottom:10px">User ID ya naam se search kijiye aur connection request bhejiye.</div>' +
+  return '<div class="card"><h3>Find users</h3><div class="muted small" style="margin-bottom:10px">Search by User ID or name and send a connection request.</div>' +
     '<div class="search-box">' + icon('search') + '<input id="peopleQ" type="search" placeholder="User ID search…" autocomplete="off" autocapitalize="none"></div>' +
     '<div id="searchRes" class="list" style="margin-top:8px"></div></div><div id="peopleLists">' + peopleListsHtml() + '</div>';
 }
 function peopleListsHtml() {
   const p = S.people || { friends: [], incoming: [], outgoing: [] };
   return '' +
-    (p.incoming.length ? '<div class="card"><h3>Aayi hui requests (' + p.incoming.length + ')</h3><div class="list">' + p.incoming.map((u) => personRow(u, '<button class="btn primary sm" data-act="accept" data-id="' + esc(u.userId) + '">' + icon('check') + '</button><button class="btn sm danger" data-act="reject" data-id="' + esc(u.userId) + '">' + icon('x') + '</button>')).join('') + '</div></div>' : '') +
-    (p.outgoing.length ? '<div class="card"><h3>Bheji hui requests</h3><div class="list">' + p.outgoing.map((u) => personRow(u, '<span class="pill pending">Pending</span><button class="btn sm" data-act="cancelReq" data-id="' + esc(u.userId) + '">Cancel</button>')).join('') + '</div></div>' : '') +
+    (p.incoming.length ? '<div class="card"><h3>Incoming requests (' + p.incoming.length + ')</h3><div class="list">' + p.incoming.map((u) => personRow(u, '<button class="btn primary sm" data-act="accept" data-id="' + esc(u.userId) + '">' + icon('check') + '</button><button class="btn sm danger" data-act="reject" data-id="' + esc(u.userId) + '">' + icon('x') + '</button>')).join('') + '</div></div>' : '') +
+    (p.outgoing.length ? '<div class="card"><h3>Sent requests</h3><div class="list">' + p.outgoing.map((u) => personRow(u, '<span class="pill pending">Pending</span><button class="btn sm" data-act="cancelReq" data-id="' + esc(u.userId) + '">Cancel</button>')).join('') + '</div></div>' : '') +
     '<div class="card"><h3>Connected users (' + p.friends.length + ')</h3>' +
-    (p.friends.length ? '<div class="list">' + p.friends.map((u) => personRow(u, '<button class="btn primary sm" data-act="sendTo" data-id="' + esc(u.userId) + '">' + icon('send') + '</button><button class="btn sm danger" data-act="unfriend" data-id="' + esc(u.userId) + '">' + icon('trash') + '</button>')).join('') + '</div>' : '<div class="empty">Abhi koi connection nahi hai. Upar se user search kijiye.</div>') + '</div>';
+    (p.friends.length ? '<div class="list">' + p.friends.map((u) => personRow(u, '<button class="btn primary sm" data-act="sendTo" data-id="' + esc(u.userId) + '">' + icon('send') + '</button><button class="btn sm danger" data-act="unfriend" data-id="' + esc(u.userId) + '">' + icon('trash') + '</button>')).join('') + '</div>' : '<div class="empty">No connections yet. Search for a user above.</div>') + '</div>';
 }
 let searchTimer = null;
 function afterPeople() {
@@ -491,45 +491,54 @@ async function doSearch() {
     box.innerHTML = r.users.length ? r.users.map((u) => {
       const act = u.relation === 'none' ? '<button class="btn primary sm" data-act="request" data-id="' + esc(u.userId) + '">' + icon('userplus') + ' Connect</button>'
         : u.relation === 'connected' ? '<span class="pill delivered">Connected</span>'
-        : u.relation === 'pending_out' ? '<span class="pill pending">Request bheji</span>'
+        : u.relation === 'pending_out' ? '<span class="pill pending">Request sent</span>'
         : '<button class="btn primary sm" data-act="accept" data-id="' + esc(u.userId) + '">Accept</button>';
       return personRow(u, act);
-    }).join('') : '<div class="empty">Koi user nahi mila.</div>';
+    }).join('') : '<div class="empty">No users found.</div>';
   } catch (e) { box.innerHTML = '<div class="msg show err">' + esc(e.message) + '</div>'; }
 }
 
 /* ---------- History ---------- */
+const UNIT_HI = { minute: 'minutes', hour: 'hours', day: 'days', week: 'weeks' };
+function repeatText(i) {
+  if (!i.repeat) return '';
+  const p = String(i.repeat).split(' ');
+  let t = 'Every ' + p[0] + ' ' + (UNIT_HI[p[1]] || p[1]) + ' · ' + i.runs + (i.maxRuns ? '/' + i.maxRuns : '') + ' sent';
+  if (i.until) { try { t += ' · until ' + new Date(i.until).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch (e) {} }
+  return t;
+}
 function bubbleHtml(i, kind, compact) {
   const unread = kind === 'received' && !i.readAt;
   const who = kind === 'received' ? 'From ' + esc(i.otherName) + ' <span class="muted small">@' + esc(i.other) + '</span>' : 'To ' + esc(i.otherName) + ' <span class="muted small">@' + esc(i.other) + '</span>';
-  const st = kind === 'received' ? '' : '<span class="pill ' + pillClass(i.status) + '">' + esc(pillLabel(i.status)) + '</span>';
+  const st = kind === 'received' ? '' : '<span class="pill ' + pillClass(i.status) + '">' + esc(kind === 'scheduled' && i.repeat && i.status === 'pending' ? 'Repeating' : pillLabel(i.status)) + '</span>';
+  const rep = kind === 'scheduled' && i.repeat ? '<span class="pill read">' + icon('refresh').replace('class="i"', 'class="i sm"') + ' ' + esc(repeatText(i)) + '</span>' : '';
   const recvTag = kind === 'received' ? (i.readAt ? '<span class="small">Read</span>' : '<span class="pill sent">New</span>') : '';
-  return '<div class="bubble-row ' + (unread ? 'unread' : '') + '"><div class="avatar" style="' + avStyle(i.other) + '">' + esc(initial(i.otherName)) + '</div><div class="bubble"><div class="who"><span>' + who + '</span></div><div class="txt">' + esc(i.message) + '</div><div class="meta"><span>' + esc(fmtWhen(i.at, i.date, i.time)) + '</span>' + st + recvTag +
+  return '<div class="bubble-row ' + (unread ? 'unread' : '') + '"><div class="avatar" style="' + avStyle(i.other) + '">' + esc(initial(i.otherName)) + '</div><div class="bubble"><div class="who"><span>' + who + '</span></div><div class="txt">' + esc(i.message) + '</div><div class="meta"><span>' + esc(fmtWhen(i.at, i.date, i.time)) + '</span>' + st + rep + recvTag +
     (compact ? '' : '<button class="del" data-act="del" data-id="' + esc(i.id) + '" data-kind="' + kind + '" title="' + (kind === 'scheduled' ? 'Cancel / delete' : 'Delete') + '" aria-label="Delete">' + icon('trash') + '</button>') + '</div></div></div>';
 }
 function viewHistory() {
   const tab = S.histTab, items = S.hist[tab];
   const seg = ['received|Received', 'sent|Sent', 'scheduled|Scheduled'].map((s) => { const p = s.split('|'); return '<button class="seg-btn ' + (tab === p[0] ? 'active' : '') + '" data-htab="' + p[0] + '">' + p[1] + '</button>'; }).join('');
   let body;
-  if (items === null) body = '<div class="empty">Load ho raha hai…</div>';
-  else if (!items.length) body = '<div class="empty">' + (tab === 'scheduled' ? 'Koi scheduled notification nahi hai.' : 'Yahan abhi kuch nahi hai.') + '</div>';
+  if (items === null) body = '<div class="empty">Loading…</div>';
+  else if (!items.length) body = '<div class="empty">' + (tab === 'scheduled' ? 'No scheduled notifications.' : 'Nothing here yet.') + '</div>';
   else body = items.map((i) => bubbleHtml(i, tab, false)).join('');
   return '<div class="card"><div class="seg" style="margin-top:0">' + seg + '</div>' +
-    '<div class="muted small" style="margin:8px 2px">' + (tab === 'sent' ? 'Status: Sent &rarr; Delivered &rarr; Read' : tab === 'scheduled' ? 'Pending wali notification delete karne par cancel ho jati hai.' : 'Notification kholne par Read mark ho jati hai.') + '</div>' + body + '</div>';
+    '<div class="muted small" style="margin:8px 2px">' + (tab === 'sent' ? 'Status: Sent &rarr; Delivered &rarr; Read' : tab === 'scheduled' ? 'Deleting a pending or repeating notification cancels it.' : 'Opening a notification marks it as Read.') + '</div>' + body + '</div>';
 }
 
 /* ---------- Settings ---------- */
 function viewSettings() {
   const devs = S.devices || [];
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-  return '<div class="card"><h3>Account</h3><div class="kv"><span>Naam</span><b>' + esc(S.user ? S.user.name : '') + '</b></div><div class="kv"><span>User ID</span><b>@' + esc(S.user ? S.user.id : '') + '</b></div>' +
-    '<div class="kv"><span>Sync hue devices</span><b>' + devs.length + '</b></div>' +
+  return '<div class="card"><h3>Account</h3><div class="kv"><span>Name</span><b>' + esc(S.user ? S.user.name : '') + '</b></div><div class="kv"><span>User ID</span><b>@' + esc(S.user ? S.user.id : '') + '</b></div>' +
+    '<div class="kv"><span>Synced devices</span><b>' + devs.length + '</b></div>' +
     (devs.length ? '<div class="muted small" style="margin-top:6px">' + devs.map((d) => esc(d.label || 'Device')).join(' &middot; ') + '</div>' : '') +
-    '<div class="muted small" style="margin-top:10px">Doosre phone/laptop par isi User ID se login kijiye aur Enable dabaiye — sabhi devices par notification aayegi.</div></div>' +
+    '<div class="muted small" style="margin-top:10px">On another phone or laptop, log in with the same User ID and tap Enable — notifications will arrive on all devices.</div></div>' +
     '<div class="card"><h3>Push notifications</h3><div id="settingsPush"></div></div>' +
     '<div class="card"><h3>Display</h3><div class="kv"><span>Theme</span><button class="btn sm" data-act="theme">' + icon(dark ? 'sun' : 'moon') + ' ' + (dark ? 'Light mode' : 'Dark mode') + '</button></div>' +
     (S.installEvt ? '<div class="kv"><span>App install</span><button class="btn sm primary" data-act="install">Install</button></div>' : '') + '</div>' +
-    '<div class="card"><h3>Backend</h3><div class="muted small" style="word-break:break-all">' + esc(S.backend) + '</div><button class="btn sm" style="margin-top:10px" data-act="backend">URL badlo</button></div>' +
+    '<div class="card"><h3>Backend</h3><div class="muted small" style="word-break:break-all">' + esc(S.backend) + '</div><button class="btn sm" style="margin-top:10px" data-act="backend">Change URL</button></div>' +
     '<button class="btn block danger" data-act="logout">' + icon('logout') + ' Logout</button>';
 }
 
@@ -544,12 +553,21 @@ $('modal').addEventListener('click', (e) => { if (e.target === $('modal') || e.t
 function openScheduleModal() {
   const d = new Date(Date.now() + 10 * 60000);
   const to = S.compose.to[0], f = friendsList().find((x) => x.userId === to);
-  openModal('<h3>Notification schedule kijiye</h3><div class="muted small">To: <b>' + esc(f ? f.name : '@' + to) + '</b></div>' +
+  openModal('<h3>Schedule notification</h3><div class="muted small">To: <b>' + esc(f ? f.name : '@' + to) + '</b></div>' +
     '<div class="two"><div><label for="sDate">Date</label><input type="date" id="sDate" min="' + localDate(new Date()) + '" value="' + localDate(d) + '"></div>' +
     '<div><label for="sTime">Time</label><input type="time" id="sTime" value="' + localTime(d) + '"></div></div>' +
-    '<div class="chips"><button class="chip" data-qs="10">10 min baad</button><button class="chip" data-qs="60">1 ghante baad</button><button class="chip" data-qs="eve">Aaj 8 PM</button><button class="chip" data-qs="tom">Kal 9 AM</button></div>' +
+    '<div class="chips"><button class="chip" data-qs="10">In 10 min</button><button class="chip" data-qs="60">In 1 hour</button><button class="chip" data-qs="eve">Today 8 PM</button><button class="chip" data-qs="tom">Tomorrow 9 AM</button></div>' +
+    '<label class="check"><input type="checkbox" id="rpOn"> <span>Repeat this message</span></label>' +
+    '<div id="rpBox" class="rp-box hidden">' +
+      '<div class="rp-row"><span>Every</span><input type="number" id="rpEvery" min="1" max="1000" value="1"><select id="rpUnit"><option value="minute">minutes</option><option value="hour" selected>hours</option><option value="day">days</option><option value="week">weeks</option></select><span></span></div>' +
+      '<div class="chips"><button class="chip" data-rp="1|hour">Hourly</button><button class="chip" data-rp="1|day">Daily</button><button class="chip" data-rp="1|week">Weekly</button></div>' +
+      '<div class="rp-row"><span>Stop:</span><select id="rpStop"><option value="count">after a number of times</option><option value="until">on a date</option></select></div>' +
+      '<div class="rp-row" id="rpCountRow"><input type="number" id="rpCount" min="1" max="100" value="5"><span>times (max 100)</span></div>' +
+      '<div class="rp-row hidden" id="rpUntilRow"><input type="date" id="rpUntil" min="' + localDate(new Date()) + '"><span>(last day, inclusive)</span></div>' +
+      '<div class="muted small">Minimum gap is 5 minutes. You can stop it anytime by deleting it from History > Scheduled.</div>' +
+    '</div>' +
     '<div class="msg" id="sMsg"></div>' +
-    '<div class="modal-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sGo">' + icon('clock') + ' Schedule karo</button></div>');
+    '<div class="modal-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sGo">' + icon('clock') + ' Schedule</button></div>');
 }
 document.addEventListener('click', (e) => {
   const q = e.target.closest('[data-qs]'); if (!q) return;
@@ -559,17 +577,47 @@ document.addEventListener('click', (e) => {
   else { d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); }
   $('sDate').value = localDate(d); $('sTime').value = localTime(d);
 });
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'rpOn') $('rpBox').classList.toggle('hidden', !e.target.checked);
+  if (e.target.id === 'rpStop') {
+    $('rpCountRow').classList.toggle('hidden', e.target.value !== 'count');
+    $('rpUntilRow').classList.toggle('hidden', e.target.value !== 'until');
+  }
+});
+document.addEventListener('click', (e) => {
+  const r = e.target.closest('[data-rp]'); if (!r) return;
+  const p = r.dataset.rp.split('|'); $('rpEvery').value = p[0]; $('rpUnit').value = p[1];
+});
+const UNIT_MIN = { minute: 1, hour: 60, day: 1440, week: 10080 };
 document.addEventListener('click', async (e) => {
   if (!e.target.closest('#sGo')) return;
   const date = $('sDate').value, time = $('sTime').value, msg = $('sMsg');
-  if (!date || !time) { setMsg(msg, 'err', 'Date aur time dono chuniye.'); return; }
+  if (!date || !time) { setMsg(msg, 'err', 'Please choose both date and time.'); return; }
   const when = new Date(date + 'T' + time);
-  if (isNaN(when) || when.getTime() < Date.now() + 30000) { setMsg(msg, 'err', 'Time future me hona chahiye.'); return; }
-  const btn = $('sGo'); btn.disabled = true; setMsg(msg, 'info', 'Schedule ho raha hai…');
+  if (isNaN(when) || when.getTime() < Date.now() + 30000) { setMsg(msg, 'err', 'Time must be in the future.'); return; }
+  let repeat = null;
+  if ($('rpOn').checked) {
+    const every = parseInt($('rpEvery').value, 10), unit = $('rpUnit').value;
+    if (!(every >= 1)) { setMsg(msg, 'err', 'Enter a valid repeat interval.'); return; }
+    if (every * UNIT_MIN[unit] < 5) { setMsg(msg, 'err', 'Repeat interval must be at least 5 minutes.'); return; }
+    repeat = { every: every, unit: unit };
+    if ($('rpStop').value === 'count') {
+      const cnt = parseInt($('rpCount').value, 10);
+      if (!(cnt >= 1) || cnt > 100) { setMsg(msg, 'err', 'Number of times must be between 1 and 100.'); return; }
+      repeat.count = cnt;
+    } else {
+      const ud = $('rpUntil').value;
+      if (!ud) { setMsg(msg, 'err', 'Choose the last date for the repeat.'); return; }
+      const end = new Date(ud + 'T23:59');
+      if (end <= when) { setMsg(msg, 'err', 'The last date must be after the first send.'); return; }
+      repeat.until = end.toISOString();
+    }
+  }
+  const btn = $('sGo'); btn.disabled = true; setMsg(msg, 'info', 'Scheduling…');
   try {
-    await api('send', { to: S.compose.to.slice(0, 1), message: S.compose.msg.trim(), scheduleAt: when.toISOString() });
+    await api('send', { to: S.compose.to.slice(0, 1), message: S.compose.msg.trim(), scheduleAt: when.toISOString(), repeat: repeat });
     closeModal(); S.compose.msg = ''; S.compose.to = [];
-    toast('Schedule ho gaya: ' + when.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }));
+    toast((repeat ? 'Repeat scheduled: ' : 'Scheduled: ') + when.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }));
     S.hist.scheduled = null; refreshStats().catch(() => {}); navigate('history', { tab: 'scheduled' });
   } catch (err) { setMsg(msg, 'err', err.message); btn.disabled = false; }
 });
@@ -615,29 +663,29 @@ $('view').addEventListener('click', async (e) => {
     case 'logout': logout(); break;
     case 'backend': changeBackend(); break;
     case 'install': installApp(); break;
-    case 'enablePush': run(async () => { await enablePush(); await refreshStats(); await updatePushUi(); }, 'Notifications chalu ho gayi'); break;
-    case 'disablePush': run(async () => { await disablePush(); await refreshStats(); await updatePushUi(); }, 'Is device par push band kar diya'); break;
-    case 'testPush': run(async () => { const r = await api('test'); toast(r.devices ? 'Test bhej diya — kuch second me aayega' : 'Pehle is device par Enable kijiye'); }); break;
+    case 'enablePush': run(async () => { await enablePush(); await refreshStats(); await updatePushUi(); }, 'Notifications enabled'); break;
+    case 'disablePush': run(async () => { await disablePush(); await refreshStats(); await updatePushUi(); }, 'Push turned off on this device'); break;
+    case 'testPush': run(async () => { const r = await api('test'); toast(r.devices ? 'Test sent — it should arrive in a few seconds' : 'Enable notifications on this device first'); }); break;
     case 'selAll': {
       const all = friendsList().map((f) => f.userId);
       S.compose.to = S.compose.to.length === all.length ? [] : all.slice();
       readComposeInputs(); renderView(); break;
     }
     case 'composeGo': composeGo(a); break;
-    case 'request': run(async () => { const r = await api('sendRequest', { to: id }); await loadPeople(); renderView(true); doSearch(); toast(r.status === 'accepted' ? 'Connected!' : 'Request bhej di'); }); break;
-    case 'accept': run(async () => { await api('respondRequest', { from: id, accept: true }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Accept ho gaya'); break;
-    case 'reject': run(async () => { await api('respondRequest', { from: id, accept: false }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Reject kar diya'); break;
+    case 'request': run(async () => { const r = await api('sendRequest', { to: id }); await loadPeople(); renderView(true); doSearch(); toast(r.status === 'accepted' ? 'Connected!' : 'Request sent'); }); break;
+    case 'accept': run(async () => { await api('respondRequest', { from: id, accept: true }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Accepted'); break;
+    case 'reject': run(async () => { await api('respondRequest', { from: id, accept: false }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Rejected'); break;
     case 'cancelReq': run(async () => { await api('removeConnection', { userId: id }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Request cancel'); break;
-    case 'unfriend': if (confirm('@' + id + ' ko connections se hatayein?')) run(async () => { await api('removeConnection', { userId: id }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Hata diya'); break;
+    case 'unfriend': if (confirm('Remove @' + id + ' from your connections?')) run(async () => { await api('removeConnection', { userId: id }); await Promise.all([loadPeople(), refreshStats()]); renderView(true); doSearch(); }, 'Removed'); break;
     case 'sendTo': S.compose.to = [id]; S.compose.tab = S.compose.tab === 'bulk' ? 'instant' : S.compose.tab; navigate('compose'); break;
     case 'del': {
       const kind = a.dataset.kind;
-      if (!confirm(kind === 'scheduled' ? 'Ye scheduled notification delete / cancel karein?' : 'Is notification ko history se delete karein?')) break;
+      if (!confirm(kind === 'scheduled' ? 'Delete / cancel this scheduled notification?' : 'Delete this notification from history?')) break;
       run(async () => {
         await api('remove', { id: id, kind: kind === 'scheduled' ? 'scheduled' : 'notif' });
         S.hist[kind] = (S.hist[kind] || []).filter((x) => x.id !== id); saveCache();
         refreshStats().catch(() => {}); renderView();
-      }, 'Delete ho gaya');
+      }, 'Deleted');
       break;
     }
   }
@@ -648,10 +696,10 @@ async function composeGo(btn) {
   readComposeInputs();
   const c = S.compose, msgBox = $('cMsgBox'), text = c.msg.trim();
   clearMsg(msgBox);
-  if (!c.to.length) { setMsg(msgBox, 'err', c.tab === 'bulk' ? 'Kam se kam ek user chuniye.' : 'Pehle user chuniye.'); return; }
+  if (!c.to.length) { setMsg(msgBox, 'err', c.tab === 'bulk' ? 'Select at least one user.' : 'Select a user first.'); return; }
   if (!text) { setMsg(msgBox, 'err', 'Message likhiye.'); return; }
   if (c.tab === 'schedule') { openScheduleModal(); return; }
-  btn.disabled = true; setMsg(msgBox, 'info', 'Bheja ja raha hai…');
+  btn.disabled = true; setMsg(msgBox, 'info', 'Sending…');
   try {
     const r = await api('send', { to: c.to, message: text });
     const res = r.results || [];
@@ -659,9 +707,9 @@ async function composeGo(btn) {
     c.msg = ''; c.to = c.tab === 'bulk' ? [] : c.to;
     renderView();
     const box = $('cMsgBox');
-    if (failed === res.length) setMsg(box, 'err', 'Push nahi ja paya (receiver ka device abhi register nahi / push service error). Message unke app me History me dikhega.');
-    else if (queued) setMsg(box, 'warn', 'Bhej diya. ' + queued + ' user ne abhi is app me notifications Enable nahi kiye — unhe app kholne par message dikhega.');
-    else setMsg(box, 'ok', res.length > 1 ? res.length + ' users ko notification bhej di gayi.' : 'Notification bhej di gayi.');
+    if (failed === res.length) setMsg(box, 'err', 'Push could not be delivered (the receiver device is not registered yet, or push service error). The message will appear in the History tab of their app.');
+    else if (queued) setMsg(box, 'warn', 'Sent. ' + queued + ' user(s) haven\'t enabled notifications in this app yet — they will see the message when they open the app.');
+    else setMsg(box, 'ok', res.length > 1 ? res.length + ' users were notified.' : 'Notification sent.');
     refreshStats().catch(() => {});
   } catch (err) { setMsg($('cMsgBox') || msgBox, 'err', err.message); btn.disabled = false; }
 }
@@ -691,18 +739,18 @@ function deviceLabel() {
   return os + ' ' + br;
 }
 async function swReady() {
-  return Promise.race([navigator.serviceWorker.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('Service worker ready nahi hua. Site https (GitHub Pages) par kholiye.')), 8000))]);
+  return Promise.race([navigator.serviceWorker.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('Service worker is not ready. Open the site over https (GitHub Pages).')), 8000))]);
 }
 async function enablePush(silent) {
-  if (!pushSupported()) throw new Error(isIOS() && !isStandalone() ? 'iPhone par pehle Share → "Add to Home Screen" karke app wahin se kholiye (iOS 16.4+).' : 'Is browser me push notifications supported nahi hain.');
+  if (!pushSupported()) throw new Error(isIOS() && !isStandalone() ? 'On iPhone, first use Share → "Add to Home Screen" and open the app from there (iOS 16.4+).' : 'Push notifications are not supported in this browser.');
   if (!S.vapid) await loadConfig();
-  if (!S.vapid) throw new Error('Server se VAPID public key nahi mili. Code.gs me keys daaliye aur New version deploy kijiye.');
-  if (S.vapidReady === false) throw new Error('Server par VAPID keys sahi nahi hain: ' + S.vapidMsg);
+  if (!S.vapid) throw new Error('VAPID public key not received from the server. Add the keys in Code.gs and deploy a New version.');
+  if (S.vapidReady === false) throw new Error('VAPID keys on the server are invalid: ' + S.vapidMsg);
   let perm = Notification.permission;
   if (perm === 'default' && !silent) perm = await Notification.requestPermission();
   if (perm !== 'granted') {
     if (silent) return false;
-    throw new Error(perm === 'denied' ? 'Notifications blocked hain. Browser ki site settings me jaakar Allow kijiye.' : 'Permission nahi mili.');
+    throw new Error(perm === 'denied' ? 'Notifications are blocked. Allow them in your browser site settings.' : 'Permission was not granted.');
   }
   const reg = await swReady();
   const key = b64uToBytes(S.vapid);
@@ -732,7 +780,7 @@ function installApp() {
   ev.userChoice.finally(() => { S.installEvt = null; renderView(); });
 }
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); S.installEvt = e; if (S.token && (S.view === 'dashboard' || S.view === 'settings')) renderView(); });
-window.addEventListener('appinstalled', () => { S.installEvt = null; toast('App install ho gaya'); });
+window.addEventListener('appinstalled', () => { S.installEvt = null; toast('App installed'); });
 
 /* =====================================================================
    Start

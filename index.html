@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="hi" data-theme="light">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PingMe</title>
-<meta name="description" content="Apne connected doston ko instant ya scheduled push notification bhejiye.">
+<meta name="description" content="Send instant or scheduled push notifications to your connected friends.">
 <meta name="theme-color" content="#6366f1">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icons/favicon.png">
@@ -26,14 +26,14 @@
 </head>
 <body>
 
-<div id="offlineBar" class="offline-bar hidden">Aap offline hain — purana data dikh raha hai</div>
+<div id="offlineBar" class="offline-bar hidden">You're offline — showing saved data</div>
 
 <!-- ============ BACKEND URL SETUP (sirf jab URL na ho) ============ -->
 <section id="setupScreen" class="screen hidden">
   <div class="auth-card">
     <div class="brand"><img src="icons/icon-192x192.png" alt="" width="64" height="64"><h1>PingMe</h1></div>
-    <h2>Pehli baar setup</h2>
-    <p class="muted">Apps Script ka Web App URL (<b>/exec</b> par khatam hone wala) yahan paste kijiye. Ek baar save hone par is browser me yaad rahega.</p>
+    <h2>First-time setup</h2>
+    <p class="muted">Paste your Apps Script Web App URL (ending in <b>/exec</b>) here. It will be remembered in this browser after saving.</p>
     <label for="setupUrl">Web App URL</label>
     <input id="setupUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
     <button class="btn primary block" id="setupSave">Save & Continue</button>
@@ -45,7 +45,7 @@
 <section id="authScreen" class="screen hidden">
   <div class="auth-card">
     <div class="brand"><img src="icons/icon-192x192.png" alt="" width="64" height="64"><h1>PingMe</h1></div>
-    <p class="muted center">Apne doston ko seedha unke phone par notification bhejiye.</p>
+    <p class="muted center">Send notifications straight to your friends' phones.</p>
 
     <div class="seg" id="authTabs" role="tablist">
       <button class="seg-btn active" data-auth="login" role="tab">Login</button>
@@ -54,17 +54,17 @@
 
     <form id="authForm" autocomplete="on" novalidate>
       <div id="nameRow" class="hidden">
-        <label for="fName">Aapka naam</label>
-        <input id="fName" type="text" maxlength="40" placeholder="Jaise: Praveen" autocomplete="name">
+        <label for="fName">Your name</label>
+        <input id="fName" type="text" maxlength="40" placeholder="e.g. Praveen" autocomplete="name">
       </div>
       <label for="fUser">User ID</label>
-      <input id="fUser" type="text" maxlength="20" placeholder="sirf a-z, 0-9, _  (3-20)" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <input id="fUser" type="text" maxlength="20" placeholder="only a-z, 0-9, _  (3-20)" autocomplete="username" autocapitalize="none" spellcheck="false">
       <label for="fPass">Password</label>
-      <input id="fPass" type="password" maxlength="100" placeholder="kam se kam 6 characters" autocomplete="current-password">
+      <input id="fPass" type="password" maxlength="100" placeholder="at least 6 characters" autocomplete="current-password">
       <button class="btn primary block" id="authSubmit" type="submit">Login</button>
     </form>
     <div class="msg" id="authMsg"></div>
-    <button class="link" id="changeBackend" type="button">Backend URL badlo</button>
+    <button class="link" id="changeBackend" type="button">Change backend URL</button>
   </div>
 </section>
 

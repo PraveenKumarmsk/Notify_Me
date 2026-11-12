@@ -36,7 +36,8 @@ const SCHEMA_ = {
   Notifications: ['from:Sender ID', 'to:Receiver ID', 'message:Message', 'date:Date', 'time:Time', 'status:Status',
                   'id:ID', 'at:At (ISO)', 'readAt:Read At', 'deliveredTo:Delivered To', 'hidden:Hidden By'],
   Scheduled:     ['from:User ID', 'to:Receiver ID', 'message:Message', 'date:Scheduled Date', 'time:Scheduled Time',
-                  'status:Status', 'id:ID', 'when:Scheduled At (ISO)', 'created:Created At', 'hidden:Hidden By']
+                  'status:Status', 'id:ID', 'when:Scheduled At (ISO)', 'created:Created At', 'hidden:Hidden By',
+                  'repeat:Repeat Every', 'until:Repeat Until (ISO)', 'runs:Runs Done', 'maxRuns:Max Runs']
 };
 const SCHEMA_KEYS_ = {};
 const SCHEMA_HEADS_ = {};
@@ -295,20 +296,20 @@ function vapidJwtCached_(audience) {
 }
 function vapidReady_() {                                     // keys sahi hain aur ek doosre se match karte hain?
   try {
-    if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.indexOf('PASTE_') === 0) return { ok: false, msg: 'VAPID_PUBLIC_KEY Code.gs me nahi bhari' };
-    if (!VAPID_PRIVATE_KEY || VAPID_PRIVATE_KEY.indexOf('PASTE_') === 0) return { ok: false, msg: 'VAPID_PRIVATE_KEY Code.gs me nahi bhari' };
+    if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.indexOf('PASTE_') === 0) return { ok: false, msg: 'VAPID_PUBLIC_KEY is not filled in Code.gs' };
+    if (!VAPID_PRIVATE_KEY || VAPID_PRIVATE_KEY.indexOf('PASTE_') === 0) return { ok: false, msg: 'VAPID_PRIVATE_KEY is not filled in Code.gs' };
     const cache = CacheService.getScriptCache();
     const ck = 'vapidok_' + b64uEnc_(sha256_(utf8_(VAPID_PUBLIC_KEY + '|' + VAPID_PRIVATE_KEY))).substring(0, 20);
     if (cache.get(ck) === '1') return { ok: true };
     const pub = b64uDec_(VAPID_PUBLIC_KEY), priv = b64uDec_(VAPID_PRIVATE_KEY);
-    if (pub.length !== 65 || pub[0] !== 4) return { ok: false, msg: 'Public key galat hai (65 bytes honi chahiye)' };
-    if (priv.length !== 32) return { ok: false, msg: 'Private key galat hai (32 bytes honi chahiye)' };
+    if (pub.length !== 65 || pub[0] !== 4) return { ok: false, msg: 'Public key is invalid (must be 65 bytes)' };
+    if (priv.length !== 32) return { ok: false, msg: 'Private key is invalid (must be 32 bytes)' };
     const derived = publicFromPrivate_(priv);
-    if (b64uEnc_(derived) !== b64uEnc_(pub)) return { ok: false, msg: 'Public aur Private key ek jodi nahi hain — dono ek hi baar me generate kijiye' };
+    if (b64uEnc_(derived) !== b64uEnc_(pub)) return { ok: false, msg: 'Public and Private keys do not match — generate both together in one go' };
     try { cache.put(ck, '1', 6 * 3600); } catch (e) {}
     return { ok: true };
   } catch (err) {
-    return { ok: false, msg: 'VAPID key padhne me error: ' + err.message };
+    return { ok: false, msg: 'Error reading VAPID key: ' + err.message };
   }
 }
 
@@ -319,13 +320,23 @@ const sheetMemo_ = {};
 function ss_() {
   if (SHEET_ID && SHEET_ID.indexOf('YOUR_') !== 0) return SpreadsheetApp.openById(SHEET_ID);
   const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (!active) fail_('SHEET_ID khali hai aur script kisi Google Sheet se juri nahi hai. Code.gs me SHEET_ID daaliye.');
+  if (!active) fail_('SHEET_ID is empty and the script is not bound to a Google Sheet. Set SHEET_ID in Code.gs.');
   return active;
 }
 function sheet_(name) {                                     // tab na ho to heading ke saath khud ban jata hai
   if (sheetMemo_[name]) return sheetMemo_[name];
   const ss = ss_();
   let sh = ss.getSheetByName(name);
+  if (sh) {                                                 // purani sheet me naye columns ke headings jodo
+    const heads0 = SCHEMA_HEADS_[name];
+    const have = sh.getRange(1, 1, 1, heads0.length).getValues()[0];
+    let diff = false;
+    for (let i = 0; i < heads0.length; i++) if (String(have[i] || '') !== heads0[i]) diff = true;
+    if (diff) {
+      sh.getRange(1, 1, sh.getMaxRows(), heads0.length).setNumberFormat('@');
+      sh.getRange(1, 1, 1, heads0.length).setValues([heads0]).setFontWeight('bold').setBackground('#e0e7ff');
+    }
+  }
   if (!sh) {
     sh = ss.insertSheet(name);
     const heads = SCHEMA_HEADS_[name];
@@ -421,7 +432,7 @@ function sessionOut_(user) { return { token: makeToken_(user), user: { id: user.
    ===================================================================== */
 function normId_(v) {
   const id = String(v === undefined || v === null ? '' : v).trim().toLowerCase();
-  if (!/^[a-z0-9_]{3,20}$/.test(id)) fail_('User ID 3-20 characters ka ho: sirf a-z, 0-9 aur _');
+  if (!/^[a-z0-9_]{3,20}$/.test(id)) fail_('User ID must be 3-20 characters: only a-z, 0-9 and _');
   return id;
 }
 function cleanText_(v, max) {
@@ -429,8 +440,8 @@ function cleanText_(v, max) {
 }
 function cleanMsg_(v) {
   const m = String(v === undefined || v === null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
-  if (!m) fail_('Message khali hai.');
-  if (m.length > MAX_MESSAGE) fail_('Message ' + MAX_MESSAGE + ' characters se chhota rakhiye.');
+  if (!m) fail_('Message is empty.');
+  if (m.length > MAX_MESSAGE) fail_('Message must be at most ' + MAX_MESSAGE + ' characters.');
   return m;
 }
 const PUSH_HOST_RE_ = /^https:\/\/(fcm\.googleapis\.com|android\.googleapis\.com|web\.push\.apple\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.push\.services\.mozilla\.com|[a-z0-9.-]+\.notify\.windows\.com|[a-z0-9.-]+\.push\.apple\.com)\//;
@@ -523,6 +534,13 @@ function deliver_(senderId, receiverIds, message) {
   return results;
 }
 
+/* ---- Repeat (baar-baar bhejna) ---- */
+const REPEAT_UNITS_ = { minute: 60000, hour: 3600000, day: 86400000, week: 604800000 };
+function repeatInterval_(str) {                             // "2 hour" -> milliseconds (0 = repeat nahi)
+  const m = String(str || '').match(/^(\d+) (minute|hour|day|week)$/);
+  return m ? parseInt(m[1], 10) * REPEAT_UNITS_[m[2]] : 0;
+}
+
 /* =====================================================================
    6) API handlers
    ===================================================================== */
@@ -534,10 +552,10 @@ const API_ = {
     const id = normId_(req.userId);
     const name = cleanText_(req.name || id, 40) || id;
     const pw = String(req.password || '');
-    if (pw.length < 6) fail_('Password kam se kam 6 characters ka rakhiye.');
-    if (pw.length > 100) fail_('Password bahut lamba hai.');
+    if (pw.length < 6) fail_('Password must be at least 6 characters.');
+    if (pw.length > 100) fail_('Password is too long.');
     const users = table_('Users');
-    if (users.some(function (u) { return u.id === id; })) fail_('Ye User ID pehle se maujood hai, doosri chuniye.');
+    if (users.some(function (u) { return u.id === id; })) fail_('This User ID already exists, choose another.');
     const hash = hashPassword_(pw);
     append_('Users', { id: id, hash: hash, name: name, created: fmtDate_(new Date()) + ' ' + fmtTime_(new Date()), status: 'active' });
     return sessionOut_({ id: id, name: name, hash: hash });
@@ -547,11 +565,11 @@ const API_ = {
     const id = String(req.userId || '').trim().toLowerCase();
     const cache = CacheService.getScriptCache();
     const failKey = 'fail_' + id;
-    if (parseInt(cache.get(failKey) || '0', 10) >= 5) fail_('Bahut zyada galat koshish. 10 minute baad try kijiye.');
+    if (parseInt(cache.get(failKey) || '0', 10) >= 5) fail_('Too many failed attempts. Try again after 10 minutes.');
     const user = table_('Users').filter(function (u) { return u.id === id; })[0];
     if (!user || user.status !== 'active' || !verifyPassword_(String(req.password || ''), user.hash)) {
       cache.put(failKey, String(parseInt(cache.get(failKey) || '0', 10) + 1), 600);
-      fail_('User ID ya password galat hai.');
+      fail_('Incorrect User ID or password.');
     }
     cache.remove(failKey);
     return sessionOut_(user);
@@ -625,15 +643,15 @@ const API_ = {
 
   sendRequest: function (req, user) {
     const to = normId_(req.to);
-    if (to === user.id) fail_('Khud ko request nahi bhej sakte.');
+    if (to === user.id) fail_('You cannot send a request to yourself.');
     const um = usersMap_();
-    if (!um[to] || um[to].status !== 'active') fail_('Ye user nahi mila.');
+    if (!um[to] || um[to].status !== 'active') fail_('User not found.');
     const conns = table_('Connections');
     const c = connectionBetween_(conns, user.id, to);
     const stamp = fmtDate_(new Date()) + ' ' + fmtTime_(new Date());
     if (c) {
-      if (c.status === 'accepted') fail_('Aap pehle se connected hain.');
-      if (c.status === 'pending' && c.from === user.id) fail_('Request pehle se bheji hui hai.');
+      if (c.status === 'accepted') fail_('You are already connected.');
+      if (c.status === 'pending' && c.from === user.id) fail_('Request already sent.');
       if (c.status === 'pending' && c.to === user.id) {                    // samne wale ne pehle bheji thi → seedha accept
         setField_('Connections', c._r, 'status', 'accepted'); setField_('Connections', c._r, 'updated', stamp);
         return { status: 'accepted' };
@@ -650,7 +668,7 @@ const API_ = {
   respondRequest: function (req, user) {
     const from = normId_(req.from);
     const c = table_('Connections').filter(function (r) { return r.from === from && r.to === user.id && r.status === 'pending'; })[0];
-    if (!c) fail_('Ye request ab maujood nahi hai.');
+    if (!c) fail_('This request no longer exists.');
     const stamp = fmtDate_(new Date()) + ' ' + fmtTime_(new Date());
     setField_('Connections', c._r, 'status', req.accept ? 'accepted' : 'rejected');
     setField_('Connections', c._r, 'updated', stamp);
@@ -670,7 +688,7 @@ const API_ = {
     const deviceId = String(req.deviceId || '').replace(/[^A-Za-z0-9_-]/g, '').substring(0, 40);
     const sub = req.subscription;
     if (!deviceId) fail_('deviceId missing');
-    if (!sub || !sub.endpoint || !PUSH_HOST_RE_.test(String(sub.endpoint))) fail_('Ye browser ka push service supported nahi hai.');
+    if (!sub || !sub.endpoint || !PUSH_HOST_RE_.test(String(sub.endpoint))) fail_('This browser push service is not supported.');
     const clean = { endpoint: String(sub.endpoint), keys: sub.keys || {} };
     const label = cleanText_(req.label || 'Device', 40);
     const stamp = fmtDate_(new Date()) + ' ' + fmtTime_(new Date());
@@ -706,32 +724,51 @@ const API_ = {
     let to = Array.isArray(req.to) ? req.to : [req.to];
     const seen = {};
     to = to.map(normId_).filter(function (x) { if (seen[x]) return false; seen[x] = true; return true; });
-    if (!to.length) fail_('Pehle koi user chuniye.');
-    if (to.length > 50) fail_('Ek baar me max 50 users ko bhej sakte hain.');
-    if (to.indexOf(user.id) !== -1) fail_('Khud ko nahi bhej sakte. Test ke liye Settings me "Test notification" use kijiye.');
+    if (!to.length) fail_('Select a user first.');
+    if (to.length > 50) fail_('You can send to at most 50 users at once.');
+    if (to.indexOf(user.id) !== -1) fail_('You cannot send to yourself. Use "Test notification" in Settings to test.');
     const ok = connectedIds_(user.id);
-    to.forEach(function (r) { if (!ok[r]) fail_('@' + r + ' aapka connected user nahi hai.'); });
+    to.forEach(function (r) { if (!ok[r]) fail_('@' + r + ' is not one of your connected users.'); });
 
     if (req.scheduleAt) {
       const when = new Date(req.scheduleAt);
-      if (isNaN(when.getTime())) fail_('Schedule ka time sahi nahi hai.');
-      if (when.getTime() < Date.now() + 20000) fail_('Schedule time future me hona chahiye.');
+      if (isNaN(when.getTime())) fail_('Invalid schedule time.');
+      if (when.getTime() < Date.now() + 20000) fail_('Schedule time must be in the future.');
+      let repeat = '', until = '', maxRuns = '';
+      if (req.repeat) {
+        const every = parseInt(req.repeat.every, 10), unit = String(req.repeat.unit || '');
+        if (!REPEAT_UNITS_[unit] || !(every >= 1) || every > 1000) fail_('Invalid repeat interval.');
+        if (every * REPEAT_UNITS_[unit] < 5 * 60000) fail_('Repeat interval must be at least 5 minutes.');
+        let cnt = parseInt(req.repeat.count, 10) || 0;
+        let endAt = req.repeat.until ? new Date(req.repeat.until) : null;
+        if (endAt && isNaN(endAt.getTime())) fail_('Invalid repeat end date.');
+        if (!cnt && !endAt) fail_('Choose when the repeat stops: a number of times or a last date.');
+        if (cnt > 100) fail_('A repeat can run at most 100 times.');
+        if (!cnt) cnt = 100;
+        const cap = when.getTime() + 366 * 86400000;
+        if (endAt && endAt.getTime() > cap) endAt = new Date(cap);
+        if (endAt && endAt.getTime() <= when.getTime()) fail_('The last date must be after the first send.');
+        const active = table_('Scheduled').filter(function (x) { return x.from === user.id && x.status === 'pending' && x.repeat; }).length;
+        if (active + to.length > 10) fail_('At most 10 repeating notifications can be active at once. Cancel an old one.');
+        repeat = every + ' ' + unit; maxRuns = cnt; until = endAt ? endAt.toISOString() : '';
+      }
       const created = new Date().toISOString();
       to.forEach(function (r) {
         append_('Scheduled', {
           from: user.id, to: r, message: message, date: fmtDate_(when), time: fmtTime_(when).substring(0, 5),
-          status: 'pending', id: newId_('s'), when: when.toISOString(), created: created, hidden: ''
+          status: 'pending', id: newId_('s'), when: when.toISOString(), created: created, hidden: '',
+          repeat: repeat, until: until, runs: '0', maxRuns: maxRuns
         });
       });
-      return { scheduled: to.length, when: when.toISOString() };
+      return { scheduled: to.length, when: when.toISOString(), repeat: repeat };
     }
-    if (!vapidReady_().ok) fail_('Server par VAPID keys sahi set nahi hain: ' + vapidReady_().msg);
+    if (!vapidReady_().ok) fail_('VAPID keys are not set correctly on the server: ' + vapidReady_().msg);
     return { results: deliver_(user.id, to, message) };
   },
 
   test: function (req, user) {                              // apne hi devices par test notification
-    if (!vapidReady_().ok) fail_('Server par VAPID keys sahi set nahi hain: ' + vapidReady_().msg);
-    const r = deliver_(user.id, [user.id], 'Test notification: ' + APP_NAME + ' sahi chal raha hai.');
+    if (!vapidReady_().ok) fail_('VAPID keys are not set correctly on the server: ' + vapidReady_().msg);
+    const r = deliver_(user.id, [user.id], 'Test notification: ' + APP_NAME + ' is working correctly.');
     const devs = table_('Devices').filter(function (d) { return d.user === user.id; }).length;
     return { results: r, devices: devs };
   },
@@ -744,7 +781,8 @@ const API_ = {
     if (kind === 'scheduled') {
       table_('Scheduled').forEach(function (s) {
         if (s.from !== user.id || hiddenHas_(s, user.id)) return;
-        items.push({ id: s.id, other: s.to, otherName: nm(s.to), message: s.message, at: s.when, date: s.date, time: s.time, status: s.status });
+        items.push({ id: s.id, other: s.to, otherName: nm(s.to), message: s.message, at: s.when, date: s.date, time: s.time, status: s.status,
+                    repeat: s.repeat || '', runs: parseInt(s.runs || '0', 10) || 0, maxRuns: parseInt(s.maxRuns || '0', 10) || 0, until: s.until || '' });
       });
     } else {
       table_('Notifications').forEach(function (n) {
@@ -827,7 +865,7 @@ function doGet(e) {
     const v = vapidReady_();
     return json_({ ok: true, appName: APP_NAME, vapidPublicKey: VAPID_PUBLIC_KEY, vapidReady: v.ok, vapidMessage: v.ok ? '' : v.msg });
   }
-  return json_({ ok: true, service: APP_NAME + ' backend chal raha hai' });
+  return json_({ ok: true, service: APP_NAME + ' backend is running' });
 }
 
 function doPost(e) {
@@ -841,7 +879,7 @@ function doPost(e) {
     let user = null;
     if (!PUBLIC_[req.action]) {
       user = authUser_(req.token);
-      if (!user) return json_({ ok: false, code: 'auth', error: 'Session khatam ho gaya, dobara login kijiye.' });
+      if (!user) return json_({ ok: false, code: 'auth', error: 'Session expired, please log in again.' });
     }
     const out = handler(req, user) || {};
     out.ok = true;
@@ -870,7 +908,25 @@ function processScheduled() {
         if (!ok[s.to]) { setField_('Scheduled', s._r, 'status', 'failed: not connected'); return; }
         setField_('Scheduled', s._r, 'status', 'sending');
         const r = deliver_(s.from, [s.to], s.message)[0];
-        setField_('Scheduled', s._r, 'status', r.status === 'failed' ? 'failed' : 'sent');
+        const runs = (parseInt(s.runs || '0', 10) || 0) + 1;
+        setField_('Scheduled', s._r, 'runs', runs);
+        const iv = repeatInterval_(s.repeat);
+        if (!iv) { setField_('Scheduled', s._r, 'status', r.status === 'failed' ? 'failed' : 'sent'); return; }
+        // Repeat: agla time nikalo (scheduler band raha ho to chhoote hue slots ek saath nahi bhejte)
+        const nowMs = Date.now();
+        let next = Date.parse(s.when) + iv;
+        if (next <= nowMs) next += (Math.floor((nowMs - next) / iv) + 1) * iv;
+        const maxRuns = parseInt(s.maxRuns || '0', 10) || 0;
+        const untilMs = s.until ? Date.parse(s.until) : 0;
+        if ((maxRuns && runs >= maxRuns) || (untilMs && next > untilMs)) {
+          setField_('Scheduled', s._r, 'status', 'sent');                    // series poori ho gayi
+        } else {
+          const nd = new Date(next);
+          setField_('Scheduled', s._r, 'when', nd.toISOString());
+          setField_('Scheduled', s._r, 'date', fmtDate_(nd));
+          setField_('Scheduled', s._r, 'time', fmtTime_(nd).substring(0, 5));
+          setField_('Scheduled', s._r, 'status', 'pending');
+        }
       } catch (err) {
         setField_('Scheduled', s._r, 'status', 'failed: ' + String(err.message || err).substring(0, 60));
       }
@@ -894,7 +950,7 @@ function setupTrigger() {
 function selfTest() {
   const lines = [];
   const v = vapidReady_();
-  lines.push('VAPID keys: ' + (v.ok ? 'OK (public/private match karte hain)' : 'PROBLEM -> ' + v.msg));
+  lines.push('VAPID keys: ' + (v.ok ? 'OK (public/private keys match)' : 'PROBLEM -> ' + v.msg));
   if (v.ok) {
     const jwt = vapidJwt_('https://fcm.googleapis.com');
     lines.push('VAPID JWT sign: OK (' + jwt.length + ' chars)');
@@ -903,7 +959,7 @@ function selfTest() {
   lines.push('Password hash/verify: ' + (h ? 'OK' : 'FAIL'));
   try { setupSheets(); lines.push('Sheets tabs: OK'); } catch (e) { lines.push('Sheets: ' + e.message); }
   lines.push('Trigger(s): ' + ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'processScheduled'; }).length +
-             ' (1 hona chahiye — nahi to setupTrigger chalaiye)');
+             ' (should be 1 — otherwise run setupTrigger)');
   const msg = lines.join('\n');
   Logger.log(msg);
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) {}

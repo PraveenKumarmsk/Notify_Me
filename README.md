@@ -52,7 +52,7 @@ Sheets ka structure:
 | **Connections** | Sender ID, Receiver ID, Connection Status (`pending` / `accepted` / `rejected`), Updated At |
 | **Devices** | User ID, Device ID, Push Subscription, Device, Updated At |
 | **Notifications** | Sender ID, Receiver ID, Message, Date, Time, Status (`queued` / `sent` / `delivered` / `read` / `failed`), ID, At (ISO), Read At, Delivered To, Hidden By |
-| **Scheduled** | User ID, Receiver ID, Message, Scheduled Date, Scheduled Time, Status (`pending` / `sent` / `cancelled` / `failed`), ID, Scheduled At (ISO), Created At, Hidden By |
+| **Scheduled** | User ID, Receiver ID, Message, Scheduled Date, Scheduled Time, Status (`pending` / `sent` / `cancelled` / `failed`), ID, Scheduled At (ISO), Created At, Hidden By, Repeat Every, Repeat Until (ISO), Runs Done, Max Runs |
 
 ### Step 2 — VAPID keys banana
 1. Is project ki `vapid-generator.html` file apne computer par **double-click** karke Chrome/Edge me kholiye.
@@ -128,8 +128,9 @@ Sheets ka structure:
 4. A: **Send** → `sana` chuniye → "Hi, How are you?" → **Abhi bhejo**.
 5. B ke phone par notification aani chahiye (B ka browser band/background me ho tab bhi).
 6. Schedule test: A: **Schedule** tab → message → **Time chuniye…** → 3-4 minute baad ka time → **Schedule karo**. Time par B ko notification aayegi.
-7. Bulk test: **Bulk** tab → kai users chuniye → bhejiye.
-8. History: B ne notification kholi → A ki **Sent** tab me status **Sent → Delivered → Read** ho jata hai.
+7. Repeat test: **Schedule** popup me "Ye message repeat karein" tick kijiye → *Har 5 minute* ya aur → *itni baar: 3* → schedule karo. History → Scheduled me "Repeating · 0/3" dikhega aur har baar ke baad count badhega.
+8. Bulk test: **Bulk** tab → kai users chuniye → bhejiye.
+9. History: B ne notification kholi → A ki **Sent** tab me status **Sent → Delivered → Read** ho jata hai.
 
 ---
 
@@ -142,9 +143,21 @@ Sheets ka structure:
 | User search, connection request, accept / reject | **People** |
 | Dashboard (Total Users, Connected, Sent, Received, Scheduled) | **Dashboard** |
 | Instant / Schedule (popup) / Bulk notification | **Send** |
+| **Repeat** (ek hi message har kuch time par) | **Send → Schedule → "Ye message repeat karein"** |
 | Sent / Received / Scheduled history, status, delete | **History** |
 | Multiple devices sync | Doosre device par isi ID se login + Enable |
 | Dark / Light mode | Top-right button ya Settings |
+
+## Repeat notification (baar-baar bhejna)
+- **Schedule** popup me date/time chuniye, phir **"Ye message repeat karein"** tick kijiye.
+- **Har** `N` minute / ghante / din / hafte (kam se kam **5 minute** ka gap).
+- **Rukna kab:** *itni baar* (max 100) **ya** *is date tak*.
+- Presets: Har ghante, Roz, Har hafte.
+- Repeating notification **History → Scheduled** me "Repeating · 3/10 baar hue" ke saath dikhti hai. Delete (dustbin) karne par poori series ruk jati hai.
+- Agar scheduler kuch der band raha ho to chhooti hui baariyan ek saath nahi bhejta, sirf ek baar bhejkar agli sahi baari par aata hai.
+- Ek account par ek saath max **10** repeating series chal sakti hain (spam se bachne ke liye).
+- Purani `Scheduled` sheet me naye 4 columns (Repeat Every, Repeat Until, Runs Done, Max Runs) apne aap jud jate hain.
+- **Update ke baad:** `Code.gs` paste karke **New version deploy** zaroor kijiye, warna repeat kaam nahi karega.
 
 ## Delivery status ka matlab
 - **Queued** — receiver ne abhi push Enable nahi kiya; app kholne par History me dikhega.

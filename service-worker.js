@@ -5,7 +5,7 @@
    2) Offline: app ka shell cache me rakhta hai
    ===================================================================== */
 
-const CACHE = 'pingme-v2';                       // app update karne par v2, v3... kar dein
+const CACHE = 'pingme-v4';                       // app update karne par v2, v3... kar dein
 const SHELL = ['./', 'index.html', 'style.css', 'script.js', 'manifest.json',
                'icons/icon-192x192.png', 'icons/icon-512x512.png', 'icons/badge-96x96.png'];
 const SCOPE = self.registration.scope;
@@ -118,7 +118,7 @@ async function handlePush(event) {
   // Browser ko har push par notification chahiye (userVisibleOnly). Kuch na mile to generic dikhao.
   if (!shown) {
     await self.registration.showNotification('PingMe', {
-      body: 'Aapke liye naya message hai. App kholkar dekhiye.',
+      body: 'You have a new message. Open the app to view it.',
       icon: url('icons/icon-192x192.png'),
       badge: url('icons/badge-96x96.png'),
       tag: 'pingme-generic'

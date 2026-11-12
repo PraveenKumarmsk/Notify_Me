@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,18 +20,18 @@
 <body>
 <div class="card">
   <h1>VAPID Key Generator</h1>
-  <p>Ye page keys aapke hi browser me banata hai — kuch bhi kisi server par nahi jata. Is file ko apne computer par double-click karke kholiye (GitHub par upload karna zaroori nahi).</p>
-  <button id="gen">Keys generate karo</button>
+  <p>This page generates the keys in your own browser — nothing is sent to any server. Open this file by double-clicking it on your computer (no need to upload it to GitHub).</p>
+  <button id="gen">Generate keys</button>
   <div id="out" style="display:none">
     <label>Public Key <span><button class="sm" data-copy="pub">Copy</button></span></label>
     <textarea id="pub" rows="3" readonly></textarea>
     <label>Private Key (SECRET) <span><button class="sm" data-copy="priv">Copy</button></span></label>
     <textarea id="priv" rows="2" readonly></textarea>
     <div class="ok" id="note"></div>
-    <div class="warn"><b>Code.gs me daaliye:</b><br>
-      <code>VAPID_PUBLIC_KEY</code> = upar wali Public Key<br>
-      <code>VAPID_PRIVATE_KEY</code> = upar wali Private Key<br><br>
-      <b>Private Key kisi ko mat dijiye</b> aur GitHub par kabhi upload mat kijiye. Dono keys hamesha ek hi jodi se honi chahiye — alag-alag baar generate ki hui keys mix mat kijiye.</div>
+    <div class="warn"><b>Put these in Code.gs:</b><br>
+      <code>VAPID_PUBLIC_KEY</code> = the Public Key above<br>
+      <code>VAPID_PRIVATE_KEY</code> = the Private Key above<br><br>
+      <b>Never share the Private Key</b> and never upload it to GitHub. Both keys must come from the same pair — do not mix keys generated at different times.</div>
   </div>
 </div>
 <script>
@@ -46,8 +46,8 @@
       document.getElementById('pub').value = b64u(pub);
       document.getElementById('priv').value = jwk.d;
       document.getElementById('out').style.display='block';
-      document.getElementById('note').textContent = 'Keys ban gayi. Dono ko Code.gs me paste kijiye.';
-    }catch(e){ alert('Is browser me key generate nahi ho payi: '+e.message+'\nChrome/Edge latest use kijiye.'); }
+      document.getElementById('note').textContent = 'Keys generated. Paste both into Code.gs.';
+    }catch(e){ alert('Could not generate keys in this browser: '+e.message+'\nUse the latest Chrome/Edge.'); }
   });
   document.addEventListener('click', function(e){
     var b = e.target.closest('[data-copy]'); if(!b) return;

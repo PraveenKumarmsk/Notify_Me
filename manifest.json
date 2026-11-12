@@ -1,7 +1,7 @@
 {
   "name": "PingMe — Personal Notifications",
   "short_name": "PingMe",
-  "description": "Apne connected doston ko instant ya scheduled push notification bhejiye.",
+  "description": "Send instant or scheduled push notifications to your connected friends.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
